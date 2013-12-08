@@ -308,65 +308,97 @@ public:
 		loadObjectViews("../data/TestPCDs/", teViews);
 
 		std::cout << "Categorizing ... " << std::endl;
-		static const float leafSizes[] = {0.030, 0.020, 0.015, 0.010};//{0.010, 0.015, 0.020, 0.03};
-		static const float normalsRadius[] = {0.06, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
-		static const float fpfhRadius[] = {0.100, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
+		static const float modelLeafSizes[] = {0.015}; //, 0.010};
+		static const float leafSizes[] = {0.030};//, 0.020, 0.015, 0.010};//{0.010, 0.015, 0.020, 0.03};
+		static const float normalsRadius[] = {0.06};//, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
+		static const float fpfhRadius[] = {0.100};//, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
 
+		std::vector<float> vModelLeafSizes (modelLeafSizes, modelLeafSizes + sizeof(modelLeafSizes) / sizeof(modelLeafSizes[0]) );
 		std::vector<float> vLeafSizes (leafSizes, leafSizes + sizeof(leafSizes) / sizeof(leafSizes[0]) );
 		std::vector<float> vNormalsRadius (normalsRadius, normalsRadius + sizeof(normalsRadius) / sizeof(normalsRadius[0]) );
 		std::vector<float> vFpfhRadius (fpfhRadius, fpfhRadius + sizeof(fpfhRadius) / sizeof(fpfhRadius[0]) );
 
-		for (int i = 0; i < vLeafSizes.size(); i++)
+		for (int m = 0; m < vModelLeafSizes.size(); m++)
 		{
-			// Downsample train
-			std::vector<CloudjectModel> cjModels;
-			createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vLeafSizes[i], cjModels);
-			// Downsample test
-			std::vector<Cloudject> cjs;
-			createCloudjects(teViews, vLeafSizes[i], cjs); 
-
-			for (int j = 0; j < vNormalsRadius.size(); j++)
+			for (int i = 0; i < vLeafSizes.size(); i++)
 			{
-				for (int k = 0; k < vFpfhRadius.size(); k++)
+				// Downsample train
+				std::vector<CloudjectModel> cjModels;
+				createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vModelLeafSizes[m], cjModels);
+				// Downsample test
+				std::vector<Cloudject> cjs;
+				createCloudjects(teViews, vLeafSizes[i], cjs); 
+
+				for (int j = 0; j < vNormalsRadius.size(); j++)
 				{
-					std::stringstream resultsline;
-					resultsline << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " ";
+					for (int k = 0; k < vFpfhRadius.size(); k++)
+					{		
+						std::cout << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " 
+							      << vNormalsRadius[j] << " " << vFpfhRadius[k] << " ";
 
-					std::cout << resultsline.str() << std::endl;
+						float accuracy;
+						float descriptionTime, categorizationTime;
 
-					float accuracy;
-					float descriptionTime, categorizationTime;
+						std::vector<int> predictions;
 
-					if (vNormalsRadius[j] < vLeafSizes[i] || vFpfhRadius[k] < vLeafSizes[i])
-					{
-						accuracy = 0;
-						descriptionTime = 0;
-						categorizationTime = 0;
-					}
-					else
-					{
-						boost::timer t;
-						describeCloudjectModels(cjModels, vNormalsRadius[j], vFpfhRadius[k]);
-						describeCloudjects(cjs, vNormalsRadius[j], vFpfhRadius[k]);
-						descriptionTime = t.elapsed();
-
-						std::vector<int> categories;
+						// No sense to have worse models than tests, or to have bigger radius (normals or fpfh) than the voxels' leaf size.
+						if (   vModelLeafSizes[m] > vLeafSizes[i] 
+							|| vNormalsRadius[j] < vLeafSizes[i]      || vFpfhRadius[k] < vLeafSizes[i]
+							|| vNormalsRadius[j] < vModelLeafSizes[m] || vFpfhRadius[k] < vModelLeafSizes[m] )
+						{
+							accuracy = 0;
+							descriptionTime = 0;
+							categorizationTime = 0;
+							predictions.resize(cjs.size(), -1);
+						}
+						else
+						{
+							boost::timer t;
+							describeCloudjectModels(cjModels, vNormalsRadius[j], vFpfhRadius[k]);
+							describeCloudjects(cjs, vNormalsRadius[j], vFpfhRadius[k]);
+							descriptionTime = t.elapsed();
 					
-						t.restart();
-						categorize(cjModels, cjs, categories);
-						categorizationTime = t.elapsed();
+							t.restart();
+							categorize(cjModels, cjs, predictions);
+							categorizationTime = t.elapsed();
 
-						accuracy = computeAccuracy(categories);
-					}
+							accuracy = computeAccuracy(predictions);
+						}
 
-					resultsline << accuracy << " " << descriptionTime << " " << categorizationTime << "\n";
+						std::cout << accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
 
-					FILE* pFile;
-					pFile = fopen("../data/results.txt", "a");
-					if (pFile != NULL)
-					{
-						fputs(resultsline.str().c_str(), pFile);
-						fclose(pFile);
+						// Save to file
+
+						FILE* pFile;
+
+						// results summary (accuracy and description and categorization times)
+						pFile = fopen("../data/summary.txt", "a");
+						if (pFile != NULL)
+						{
+							std::stringstream summaryline;
+
+							summaryline << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " "
+										<< accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
+
+							fputs(summaryline.str().c_str(), pFile);
+
+							fclose(pFile);
+						}
+
+						// vector of label predictions
+						pFile = fopen("../data/predictions.txt", "a");
+						if (pFile != NULL)
+						{
+							std::stringstream predictionsline;
+
+							for (int p = 0; p < predictions.size(); p++)
+								predictionsline << predictions[p] << " ";
+							predictionsline << std::endl;
+
+							fputs(predictionsline.str().c_str(), pFile);
+
+							fclose(pFile);
+						}
 					}
 				}
 			}

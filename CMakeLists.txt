@@ -10,5 +10,5 @@ add_definitions(${PCL_DEFINITIONS})
 
 find_package(OpenCV REQUIRED)
 
-add_executable (descriptors_test descriptors_test.cpp)
+add_executable (descriptors_test descriptors_test.cpp Cloudject.hpp CloudjectModel.hpp)
 target_link_libraries (descriptors_test ${OpenCV_LIBS} ${PCL_LIBRARIES})

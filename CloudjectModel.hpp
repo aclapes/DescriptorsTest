@@ -39,9 +39,9 @@ public:
 			avg.filter(*pViewF);
 
 			pViewF.swap(pView);
-
-			m_ViewClouds.push_back(pView);
 		}
+		
+		m_ViewClouds.push_back(pView);
 	}
 
 protected:
@@ -239,7 +239,7 @@ public:
 				{
 					if ( freeCorrespondences = !(matches[i][j]) ) // A point in a view can only be matched one time against
 					{
-						dist = euclideanDistanceFPFHSignatures( descriptor->points[p], 	m_ViewsDescriptors[i]->points[j]);
+						dist = euclideanDistanceFPFHSignatures( descriptor->points[p], 	m_ViewsDescriptors[i]->points[j], minDistToP);
 
 						if (dist < minDistToP) // not matched yet and minimum
 						{
@@ -272,6 +272,21 @@ public:
 		float acc = 0;
 		for (int b = 0; b < 33; b++)
 		{
+			acc += powf(s1.histogram[b] - s2.histogram[b], 2.0);
+		}
+
+		return sqrtf(acc);
+	}
+
+
+	float euclideanDistanceFPFHSignatures(SignatureT s1, SignatureT s2, float thresh)
+	{
+		float acc = 0;
+		for (int b = 0; b < 33; b++)
+		{
+			if (sqrtf(acc) >= thresh)
+				return thresh;
+
 			acc += powf(s1.histogram[b] - s2.histogram[b], 2.0);
 		}
 

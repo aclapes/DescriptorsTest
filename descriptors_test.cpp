@@ -308,10 +308,10 @@ public:
 		loadObjectViews("../data/TestPCDs/", teViews);
 
 		std::cout << "Categorizing ... " << std::endl;
-		static const float modelLeafSizes[] = {0.015}; //, 0.010};
-		static const float leafSizes[] = {0.030};//, 0.020, 0.015, 0.010};//{0.010, 0.015, 0.020, 0.03};
-		static const float normalsRadius[] = {0.06};//, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
-		static const float fpfhRadius[] = {0.100};//, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
+		static const float modelLeafSizes[] = {0.010}; //, 0.015};
+		static const float leafSizes[] = {0.030, 0.020, 0.015, 0.010};//{0.010, 0.015, 0.020, 0.03};
+		static const float normalsRadius[] = {0.06, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
+		static const float fpfhRadius[] = {0.100, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
 
 		std::vector<float> vModelLeafSizes (modelLeafSizes, modelLeafSizes + sizeof(modelLeafSizes) / sizeof(modelLeafSizes[0]) );
 		std::vector<float> vLeafSizes (leafSizes, leafSizes + sizeof(leafSizes) / sizeof(leafSizes[0]) );
@@ -369,36 +369,18 @@ public:
 
 						// Save to file
 
-						FILE* pFile;
-
 						// results summary (accuracy and description and categorization times)
-						pFile = fopen("../data/summary.txt", "a");
-						if (pFile != NULL)
-						{
-							std::stringstream summaryline;
+						std::ofstream pSummaryFile ("../data/summary.txt", std::ios::out | std::ios::app);
 
-							summaryline << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " "
-										<< accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
+						std::stringstream summaryline;
+						summaryline << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " "
+									<< accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
 
-							fputs(summaryline.str().c_str(), pFile);
+						pSummaryFile << summaryline.str();
 
-							fclose(pFile);
-						}
-
-						// vector of label predictions
-						pFile = fopen("../data/predictions.txt", "a");
-						if (pFile != NULL)
-						{
-							std::stringstream predictionsline;
-
-							for (int p = 0; p < predictions.size(); p++)
-								predictionsline << predictions[p] << " ";
-							predictionsline << std::endl;
-
-							fputs(predictionsline.str().c_str(), pFile);
-
-							fclose(pFile);
-						}
+						std::ofstream pPredsFile ("../data/predictions.txt", std::ios::out | std::ios::app);
+						std::copy(predictions.begin(), predictions.end(), std::ostream_iterator<int>(pPredsFile, " "));
+						pPredsFile << std::endl;
 					}
 				}
 			}

@@ -297,7 +297,7 @@ public:
 	}
 
 
-	void run()
+void run()
 	{
 		std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> trViews, teViews;
 		

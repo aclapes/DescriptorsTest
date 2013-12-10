@@ -30,7 +30,9 @@ public:
 		}
 		else
 		{
-			m_ViewA = viewA;
+			m_ViewA = PointCloudPtr(new PointCloud);
+				
+			pcl::copyPointCloud(*viewA, *m_ViewA);
 		}
 
 		// TODO: the position should be the mean of the the two centroids from the two views, not from only A
@@ -57,8 +59,11 @@ public:
 		}
 		else
 		{
-			m_ViewA = viewA;
-			m_ViewB = viewB;
+			m_ViewA = PointCloudPtr(new PointCloud);
+			m_ViewB = PointCloudPtr(new PointCloud);
+				
+			pcl::copyPointCloud(*viewA, *m_ViewA);
+			pcl::copyPointCloud(*viewB, *m_ViewB);
 		}
 
 		// Compute centroids' positions
@@ -240,13 +245,13 @@ class Cloudject<PointT, pcl::FPFHSignature33> : public CloudjectBase<PointT, pcl
 
 public:
 	Cloudject() 
-		: CloudjectBase<PointT,pcl::FPFHSignature33>() { init(); }
+		: CloudjectBase<PointT,pcl::FPFHSignature33>() { }
 	Cloudject(PointCloudPtr viewA, float leafSize = 0.0) 
-		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewA, leafSize) { init(); }
+		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewA, leafSize) { }
 	Cloudject(PointCloudPtr viewA, PointCloudPtr viewB, float leafSize = 0.0) 
-		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewA, viewB, leafSize) { init(); }
+		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewA, viewB, leafSize) { }
 	Cloudject(const char* viewPathA, const char* viewPathB, float leafSize = 0.0) 
-		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewPathA, viewPathB, leafSize) { init(); }
+		: CloudjectBase<PointT,pcl::FPFHSignature33>(viewPathA, viewPathB, leafSize) { }
 	
 
 	Cloudject(const Cloudject<PointT,pcl::FPFHSignature33>& cloudject) 
@@ -288,10 +293,14 @@ public:
 
 	void describe(float normalRadius, float fpfhRadius)
 	{
+		m_DescriptorA = pcl::PointCloud<pcl::FPFHSignature33>::Ptr (new pcl::PointCloud<pcl::FPFHSignature33>);
 		describeView(m_ViewA, normalRadius, fpfhRadius, *m_DescriptorA);
 
 		if (getType() == Type::TwoViews)
+		{
+			m_DescriptorB = pcl::PointCloud<pcl::FPFHSignature33>::Ptr (new pcl::PointCloud<pcl::FPFHSignature33>);
 			describeView(m_ViewB, normalRadius, fpfhRadius, *m_DescriptorB);
+		}
 	}
 
 	void describeView(PointCloudPtr pView, 

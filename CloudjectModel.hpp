@@ -39,9 +39,16 @@ public:
 			avg.filter(*pViewF);
 
 			pViewF.swap(pView);
+
+			m_ViewClouds.push_back(pView);
 		}
-		
-		m_ViewClouds.push_back(pView);
+		else
+		{
+			PointCloudPtr pViewCpy (new PointCloud);
+			pcl::copyPointCloud(*pView, *pViewCpy);
+
+			m_ViewClouds.push_back(pView);
+		}
 	}
 
 protected:

@@ -308,10 +308,17 @@ void run()
 		loadObjectViews("../data/TestPCDs/", teViews);
 
 		std::cout << "Categorizing ... " << std::endl;
-		static const float modelLeafSizes[] = {0.010}; //, 0.015};
-		static const float leafSizes[] = {0.030, 0.020, 0.015, 0.010};//{0.010, 0.015, 0.020, 0.03};
-		static const float normalsRadius[] = {0.06, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
-		static const float fpfhRadius[] = {0.100, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
+
+		// Summary 1
+		static const float modelLeafSizes[] = {/*0.030, */0.015};
+		static const float leafSizes[] = {/*{0.030,*/ 0.0225, 0.015};
+		static const float normalsRadius[] = {0.06, 0.045, 0.030, 0.015};
+		static const float fpfhRadius[] = {0.300, 0.200, 0.150, 0.125, 0.100, 0.075, 0.050};
+
+		//static const float modelLeafSizes[] = {0.030}; //, 0.010};
+		//static const float leafSizes[] = {0.030};//{0.010, 0.015, 0.020, 0.03};
+		//static const float normalsRadius[] = {0.08, 0.07, 0.06}; //, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
+		//static const float fpfhRadius[] = {0.30, 0.20}; //{0.100, 0.075, 0.050, 0.025};// {0.025, 0.05, 0.075, 0.1};
 
 		std::vector<float> vModelLeafSizes (modelLeafSizes, modelLeafSizes + sizeof(modelLeafSizes) / sizeof(modelLeafSizes[0]) );
 		std::vector<float> vLeafSizes (leafSizes, leafSizes + sizeof(leafSizes) / sizeof(leafSizes[0]) );
@@ -322,13 +329,6 @@ void run()
 		{
 			for (int i = 0; i < vLeafSizes.size(); i++)
 			{
-				// Downsample train
-				std::vector<CloudjectModel> cjModels;
-				createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vModelLeafSizes[m], cjModels);
-				// Downsample test
-				std::vector<Cloudject> cjs;
-				createCloudjects(teViews, vLeafSizes[i], cjs); 
-
 				for (int j = 0; j < vNormalsRadius.size(); j++)
 				{
 					for (int k = 0; k < vFpfhRadius.size(); k++)
@@ -336,8 +336,15 @@ void run()
 						std::cout << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " 
 							      << vNormalsRadius[j] << " " << vFpfhRadius[k] << " ";
 
+						// Downsample train
+						std::vector<CloudjectModel> cjModels;
+						createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vModelLeafSizes[m], cjModels);
+						// Downsample test
+						std::vector<Cloudject> cjs;
+						createCloudjects(teViews, vLeafSizes[i], cjs); 
+
 						float accuracy;
-						float descriptionTime, categorizationTime;
+						double descriptionTime, categorizationTime;
 
 						std::vector<int> predictions;
 
@@ -354,6 +361,8 @@ void run()
 						else
 						{
 							boost::timer t;
+
+							t.restart();
 							describeCloudjectModels(cjModels, vNormalsRadius[j], vFpfhRadius[k]);
 							describeCloudjects(cjs, vNormalsRadius[j], vFpfhRadius[k]);
 							descriptionTime = t.elapsed();
@@ -373,7 +382,7 @@ void run()
 						std::ofstream pSummaryFile ("../data/summary.txt", std::ios::out | std::ios::app);
 
 						std::stringstream summaryline;
-						summaryline << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " "
+						summaryline << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " << vNormalsRadius[j] << " " << vFpfhRadius[k] << " "
 									<< accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
 
 						pSummaryFile << summaryline.str();

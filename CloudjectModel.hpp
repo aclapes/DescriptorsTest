@@ -231,7 +231,7 @@ public:
 		float accDistToSig = 0;
 
 		float minDistToP, dist; // inner-loop vars
-		int minIdxV, minIdxP;
+		int minIdxV = -1, minIdxP = -1;
 		int numOfTotalMatches = 0;
 
 		for (int p = 0; p < descriptor->points.size(); p++)
@@ -246,7 +246,7 @@ public:
 				{
 					if ( freeCorrespondences = !(matches[i][j]) ) // A point in a view can only be matched one time against
 					{
-						dist = euclideanDistanceFPFHSignatures( descriptor->points[p], 	m_ViewsDescriptors[i]->points[j], minDistToP);
+						dist = battacharyyaDistanceFPFHSignatures( descriptor->points[p], m_ViewsDescriptors[i]->points[j]/*, minDistToP*/);
 
 						if (dist < minDistToP) // not matched yet and minimum
 						{
@@ -258,7 +258,10 @@ public:
 				}
 			}
 			
-			if (freeCorrespondences) // if it is not "true", minDist is infinity. Not to accumulate infinity :S
+			// if it is not "true", minDist is infinity. Not to accumulate infinity :S
+			// And dealing with another kinds of errors
+			//if ( freeCorrespondences && !(minIdx < 0 || minIdxP < 0) )
+			if (minDistToP < std::numeric_limits<float>::infinity())
 			{
 				accDistToSig += minDistToP;
 				numOfTotalMatches ++;
@@ -269,8 +272,26 @@ public:
 		}
 
 		// Normalization: to deal with partial occlusions
-		float factor = (descriptor->points.size() / (float) averageNumOfPointsInModels());
+		//float factor = (descriptor->points.size() / (float) averageNumOfPointsInModels());
 		return accDistToSig / numOfTotalMatches;// / factor;
+	}
+
+
+	float battacharyyaDistanceFPFHSignatures(SignatureT s1, SignatureT s2)
+	{
+		float accSqProd = 0;
+		float accS1 = 0;
+		float accS2 = 0;
+		for (int b = 0; b < 33; b++)
+		{
+			accSqProd += sqrt(s1.histogram[b] * s2.histogram[b]);
+			accS1 += s1.histogram[b];
+			accS2 += s2.histogram[b];
+		}
+
+		float f = 1.0 / sqrt((accS1/33) * (accS2/33) * (33*33));
+
+		return sqrt(1 - f * accSqProd);
 	}
 
 

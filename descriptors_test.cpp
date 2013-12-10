@@ -310,8 +310,8 @@ void run()
 		std::cout << "Categorizing ... " << std::endl;
 
 		// Summary 1
-		static const float modelLeafSizes[] = {/*0.030, */0.015};
-		static const float leafSizes[] = {/*{0.030,*/ 0.0225, 0.015};
+		static const float modelLeafSizes[] = {0.030, 0.015};
+		static const float leafSizes[] = {0.030, 0.0225, 0.015};
 		static const float normalsRadius[] = {0.06, 0.045, 0.030, 0.015};
 		static const float fpfhRadius[] = {0.300, 0.200, 0.150, 0.125, 0.100, 0.075, 0.050};
 

@@ -104,8 +104,8 @@ public:
 	//	: CloudjectModelBase<PointT, SignatureT>() 
 	//{}
 
-	CloudjectModel(int ID, int nViewpoints = 3, float leafSize = 0.0)
-		: CloudjectModelBase<PointT, SignatureT>(ID, nViewpoints, leafSize) {}
+	CloudjectModel(int ID, int nViewpoints = 3, float leafSize = 0.0, float pointRejectionThresh = 0.5)
+		: CloudjectModelBase<PointT, SignatureT>(ID, nViewpoints, leafSize), m_PointRejectionThresh(pointRejectionThresh) {}
 
 
 	virtual ~CloudjectModel() {}
@@ -261,7 +261,7 @@ public:
 			// if it is not "true", minDist is infinity. Not to accumulate infinity :S
 			// And dealing with another kinds of errors
 			//if ( freeCorrespondences && !(minIdx < 0 || minIdxP < 0) )
-			if (minDistToP < std::numeric_limits<float>::infinity())
+			if (/*minDistToP < std::numeric_limits<float>::infinity() &&*/ minDistToP > 0 && minDistToP < m_PointRejectionThresh)
 			{
 				accDistToSig += minDistToP;
 				numOfTotalMatches ++;
@@ -273,7 +273,11 @@ public:
 
 		// Normalization: to deal with partial occlusions
 		//float factor = (descriptor->points.size() / (float) averageNumOfPointsInModels());
-		return accDistToSig / numOfTotalMatches;// / factor;
+		
+		float avgDist = accDistToSig / numOfTotalMatches;
+		float score =  1 - avgDist;
+
+		return score * (numOfTotalMatches / descriptor->points.size());
 	}
 
 
@@ -339,5 +343,6 @@ public:
 
 private:
 	std::vector<DescriptorPtr> m_ViewsDescriptors;
+	float m_PointRejectionThresh;
 };
 

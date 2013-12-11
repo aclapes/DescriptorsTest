@@ -2,6 +2,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/features/fpfh.h>
+#include <pcl/features/pfhrgb.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/kdtree/kdtree.h>
 #include <stdio.h>
@@ -15,139 +16,140 @@
 
 using namespace boost::filesystem;
 
-class FPFHCategorizer
-{
-	typedef pcl::PointXYZRGB PointT;
-	typedef pcl::Normal	NormalT;
-	typedef pcl::FPFHSignature33 SignatureT;
-	typedef pcl::PointCloud<PointT> PointCloud;
-	typedef pcl::PointCloud<NormalT> NormalCloud;
-	typedef pcl::PointCloud<PointT>::Ptr PointCloudPtr;
-	typedef pcl::PointCloud<NormalT>::Ptr NormalCloudPtr;
-	typedef pcl::PointCloud<SignatureT> Descriptor;
-	typedef pcl::PointCloud<SignatureT>::Ptr DescriptorPtr;
-	typedef CloudjectModel<PointT, SignatureT> CloudjectModel;
-	typedef Cloudject<PointT, SignatureT> Cloudject;
-
-public:
-	FPFHCategorizer(float normalRadius, float fpfhRadius)
-		: m_NormalRadius(normalRadius), m_FpfhRadius(fpfhRadius)
-	{
-
-	}
-
-	void setTrainCloudjects(std::vector<CloudjectModel> models)
-	{
-		m_TrModels = models;
-	}
-
-	void extractNormalsFromView(PointCloudPtr pCloud, 
-		NormalCloudPtr pNormals)
-	{
-		// Create the normal estimation class, and pass the input dataset to it
-		pcl::NormalEstimation<PointT, NormalT> ne;
-		ne.setInputCloud (pCloud);
-
-		// Create an empty kdtree representation, and pass it to the normal estimation object.
-		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
-		ne.setSearchMethod (tree);
-
-		// Output datasets
-		// *initialized outside
-
-		// Use all neighbors in a sphere of radius 3cm
-		ne.setRadiusSearch (m_NormalRadius);
-
-		// Compute the features
-		ne.compute (*pNormals);
-	}
-
-	void computeFPFHDescriptor(
-		PointCloudPtr pCloud, 
-		NormalCloudPtr pNormals,
-		DescriptorPtr fpfhs)
-	{
-		pcl::FPFHEstimation<PointT, NormalT, SignatureT> fpfh;
-		fpfh.setInputCloud (pCloud);
-		fpfh.setInputNormals (pNormals);
-		// alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
-
-		// Create an empty kdtree representation, and pass it to the FPFH estimation object.
-		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>);
-
-		fpfh.setSearchMethod (tree);
-
-		// Output datasets
-		// * initialize outside
-
-		// Use all neighbors in a sphere of radius 5cm
-		// IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
-		fpfh.setRadiusSearch (m_FpfhRadius);
-
-		// Compute the features
-		fpfh.compute (*fpfhs);
-	}
-
-
-	//void categorize(std::vector<Cloudject> cloudjects, DescriptorPtr fpfhs, int& category)
-	//{
-	//	int closerCloudject;
-
-	//	float dist;
-	//	float closerCloudjectDist = std::numeric_limits<float>::infinity();
-
-	//	for (int i = 0; i < cloudjects.size(); i++)
-	//	{
-	//		dist = cloudjects[i].matchView(fpfhs);
-	//		if (dist < closerCloudjectDist) 
-	//		{ 
-	//			closerCloudjectDist = dist;
-	//			closerCloudject = i;
-	//		}
-	//	}
-
-	//	// Final categorization as the closer cloudject in term of distance between point signatures
-	//	category = closerCloudject;
-	//}
-
-
-	//void perform(std::vector<PointCloudPtr> views, std::vector<int>& categories)
-	//{
-	//	// Describe
-
-	//	//std::cout << "Feature extraction in training ..." << std::endl;
-
-	//	for (int v = 0; v < views.size(); v++)
-	//	{
-	//		NormalCloudPtr pViewNormals (new NormalCloud);
-
-	//		views[v]
-	//		pcl::PointCloud<pcl::FPFHSignature33>::Ptr pViewFPFHSignature (new pcl::PointCloud<pcl::FPFHSignature33>);
-	//		computeFPFHDescriptor(views[v], pViewNormals, pViewFPFHSignature);
-
-	//		int category;
-	//		categorize(m_TrCloudjects, pViewFPFHSignature, category);
-	//		//std::cout << category << std::endl;
-	//		categories.push_back(category);
-	//	}
-	//}
-
-private:
-	std::vector<CloudjectModel> m_TrModels;
-	std::vector<Cloudject> m_TeCloudjects;
-
-	float m_leafSize;
-	float m_NormalRadius;
-	float m_FpfhRadius;
-};
+//class FPFHCategorizer
+//{
+//	typedef pcl::PointXYZRGB PointT;
+//	typedef pcl::Normal	NormalT;
+//	//typedef pcl::FPFHSignature33 SignatureT;
+//	typedef pcl::PFHRGBSignature250 SignatureT;
+//	typedef pcl::PointCloud<PointT> PointCloud;
+//	typedef pcl::PointCloud<NormalT> NormalCloud;
+//	typedef pcl::PointCloud<PointT>::Ptr PointCloudPtr;
+//	typedef pcl::PointCloud<NormalT>::Ptr NormalCloudPtr;
+//	typedef pcl::PointCloud<SignatureT> Descriptor;
+//	typedef pcl::PointCloud<SignatureT>::Ptr DescriptorPtr;
+//	typedef CloudjectModel<PointT, SignatureT> CloudjectModel;
+//	typedef Cloudject<PointT, SignatureT> Cloudject;
+//
+//public:
+//	FPFHCategorizer(float normalRadius, float fpfhRadius)
+//		: m_NormalRadius(normalRadius), m_FpfhRadius(fpfhRadius)
+//	{
+//
+//	}
+//
+//	void setTrainCloudjects(std::vector<CloudjectModel> models)
+//	{
+//		m_TrModels = models;
+//	}
+//
+//	void extractNormalsFromView(PointCloudPtr pCloud, 
+//		NormalCloudPtr pNormals)
+//	{
+//		// Create the normal estimation class, and pass the input dataset to it
+//		pcl::NormalEstimation<PointT, NormalT> ne;
+//		ne.setInputCloud (pCloud);
+//
+//		// Create an empty kdtree representation, and pass it to the normal estimation object.
+//		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+//		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
+//		ne.setSearchMethod (tree);
+//
+//		// Output datasets
+//		// *initialized outside
+//
+//		// Use all neighbors in a sphere of radius 3cm
+//		ne.setRadiusSearch (m_NormalRadius);
+//
+//		// Compute the features
+//		ne.compute (*pNormals);
+//	}
+//
+//	void computeFPFHDescriptor(
+//		PointCloudPtr pCloud, 
+//		NormalCloudPtr pNormals,
+//		DescriptorPtr fpfhs)
+//	{
+//		pcl::FPFHEstimation<PointT, NormalT, SignatureT> fpfh;
+//		fpfh.setInputCloud (pCloud);
+//		fpfh.setInputNormals (pNormals);
+//		// alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
+//
+//		// Create an empty kdtree representation, and pass it to the FPFH estimation object.
+//		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+//		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>);
+//
+//		fpfh.setSearchMethod (tree);
+//
+//		// Output datasets
+//		// * initialize outside
+//
+//		// Use all neighbors in a sphere of radius 5cm
+//		// IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+//		fpfh.setRadiusSearch (m_FpfhRadius);
+//
+//		// Compute the features
+//		fpfh.compute (*fpfhs);
+//	}
+//
+//
+//	//void categorize(std::vector<Cloudject> cloudjects, DescriptorPtr fpfhs, int& category)
+//	//{
+//	//	int closerCloudject;
+//
+//	//	float dist;
+//	//	float closerCloudjectDist = std::numeric_limits<float>::infinity();
+//
+//	//	for (int i = 0; i < cloudjects.size(); i++)
+//	//	{
+//	//		dist = cloudjects[i].matchView(fpfhs);
+//	//		if (dist < closerCloudjectDist) 
+//	//		{ 
+//	//			closerCloudjectDist = dist;
+//	//			closerCloudject = i;
+//	//		}
+//	//	}
+//
+//	//	// Final categorization as the closer cloudject in term of distance between point signatures
+//	//	category = closerCloudject;
+//	//}
+//
+//
+//	//void perform(std::vector<PointCloudPtr> views, std::vector<int>& categories)
+//	//{
+//	//	// Describe
+//
+//	//	//std::cout << "Feature extraction in training ..." << std::endl;
+//
+//	//	for (int v = 0; v < views.size(); v++)
+//	//	{
+//	//		NormalCloudPtr pViewNormals (new NormalCloud);
+//
+//	//		views[v]
+//	//		pcl::PointCloud<pcl::FPFHSignature33>::Ptr pViewFPFHSignature (new pcl::PointCloud<pcl::FPFHSignature33>);
+//	//		computeFPFHDescriptor(views[v], pViewNormals, pViewFPFHSignature);
+//
+//	//		int category;
+//	//		categorize(m_TrCloudjects, pViewFPFHSignature, category);
+//	//		//std::cout << category << std::endl;
+//	//		categories.push_back(category);
+//	//	}
+//	//}
+//
+//private:
+//	std::vector<CloudjectModel> m_TrModels;
+//	std::vector<Cloudject> m_TeCloudjects;
+//
+//	float m_leafSize;
+//	float m_NormalRadius;
+//	float m_FpfhRadius;
+//};
 
 
 class DescriptorTester
 {
-	typedef Cloudject<pcl::PointXYZRGB, pcl::FPFHSignature33> Cloudject;
-	typedef CloudjectModel<pcl::PointXYZRGB, pcl::FPFHSignature33> CloudjectModel;
+	typedef Cloudject<pcl::PointXYZRGB, pcl::PFHRGBSignature250> Cloudject;
+	typedef CloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250> CloudjectModel;
 
 public:
 	DescriptorTester(int numObjects, int numInstancesTrain, int numInstancesTest, float maxCorrespondenceThres)
@@ -317,12 +319,12 @@ void run()
 		//static const float fpfhRadius[] = {0.300, 0.200, 0.150, 0.125, 0.100, 0.075, 0.050};
 
 		// Best
-		static const float modelLeafSizes[] = {0.015};
+		static const float modelLeafSizes[] = {0.0225};
 		static const float leafSizes[] = {0.0225};
-		static const float normalsRadius[] = {0.06};
-		static const float fpfhRadius[] = {0.125};
+		static const float normalsRadius[] = {0.04};
+		static const float fpfhRadius[] = {0.08};
 
-		static const float pointRejectionThresh[] = {0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98};
+		static const float pointRejectionThresh[] = {1.0};
 
 		//static const float modelLeafSizes[] = {0.030}; //, 0.010};
 		//static const float leafSizes[] = {0.030};//{0.010, 0.015, 0.020, 0.03};

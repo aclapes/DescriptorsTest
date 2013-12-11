@@ -375,3 +375,147 @@ private:
 
 	pcl::PointCloud<pcl::FPFHSignature33>::Ptr m_DescriptorA, m_DescriptorB;
 };
+
+
+template<typename PointT>
+class Cloudject<PointT, pcl::PFHRGBSignature250> : public CloudjectBase<PointT, pcl::PFHRGBSignature250>
+{
+	typedef pcl::PFHRGBSignature250 SignatureT;
+	typedef pcl::PointCloud<SignatureT> Descriptor;
+	typedef pcl::PointCloud<SignatureT>::Ptr DescriptorPtr;
+	typedef typename pcl::PointCloud<PointT> PointCloud;
+	typedef typename pcl::PointCloud<PointT>::Ptr PointCloudPtr;
+
+public:
+	Cloudject() 
+		: CloudjectBase<PointT, SignatureT>() { }
+	Cloudject(PointCloudPtr viewA, float leafSize = 0.0) 
+		: CloudjectBase<PointT, SignatureT>(viewA, leafSize) { }
+	Cloudject(PointCloudPtr viewA, PointCloudPtr viewB, float leafSize = 0.0) 
+		: CloudjectBase<PointT, SignatureT>(viewA, viewB, leafSize) { }
+	Cloudject(const char* viewPathA, const char* viewPathB, float leafSize = 0.0) 
+		: CloudjectBase<PointT, SignatureT>(viewPathA, viewPathB, leafSize) { }
+	
+
+	Cloudject(const Cloudject<PointT, SignatureT>& cloudject) 
+		: CloudjectBase<PointT, SignatureT>(cloudject)
+	{
+		m_DescriptorA = cloudject.m_DescriptorA;
+		m_DescriptorB = cloudject.m_DescriptorB;
+	}
+
+	virtual ~Cloudject() {}
+
+
+	int getID() { return CloudjectBase<PointT, SignatureT>::getID(); }
+	
+	void setID(int ID) { CloudjectBase<PointT, SignatureT>::setID(ID); }
+
+
+	PointT getPosA() { return CloudjectBase<PointT, SignatureT>::getPosA(); }
+
+	PointT getPosB() { return CloudjectBase<PointT, SignatureT>::getPosB(); }
+
+
+	PointCloudPtr getViewA() { return CloudjectBase<PointT, SignatureT>::getViewA(); }
+
+	PointCloudPtr getViewB() { return CloudjectBase<PointT, SignatureT>::getViewB(); }
+
+
+	void init()
+	{
+		m_DescriptorA = DescriptorPtr (new Descriptor);
+		m_DescriptorB = DescriptorPtr (new Descriptor);
+	}
+
+	void describe(DescriptorPtr descA, DescriptorPtr descB)
+	{
+		m_DescriptorA = descA;
+		m_DescriptorB = descB;
+	}
+
+	void describe(float normalRadius, float fpfhRadius)
+	{
+		m_DescriptorA = DescriptorPtr (new Descriptor);
+		describeView(m_ViewA, normalRadius, fpfhRadius, *m_DescriptorA);
+
+		if (getType() == Type::TwoViews)
+		{
+			m_DescriptorB = DescriptorPtr (new Descriptor);
+			describeView(m_ViewB, normalRadius, fpfhRadius, *m_DescriptorB);
+		}
+	}
+
+	void describeView(PointCloudPtr pView, 
+					  float normalRadius, float featureRadius,
+					  Descriptor& descriptor)
+	{
+		//
+		// Normals preprocess
+		//
+
+		// Create the normal estimation class, and pass the input dataset to it
+		pcl::NormalEstimation<PointT, pcl::Normal> ne;
+		ne.setInputCloud (pView);
+
+		// Create an empty kdtree representation, and pass it to the normal estimation object.
+		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
+		ne.setSearchMethod (tree);
+
+		// Output datasets
+		pcl::PointCloud<pcl::Normal>::Ptr pNormals (new pcl::PointCloud<pcl::Normal>);
+
+		// Use all neighbors in a sphere of radius 3cm
+		ne.setRadiusSearch (normalRadius);
+
+		// Compute the features
+		ne.compute (*pNormals);	
+
+		//
+		// FPFH description extraction
+		//
+
+		pcl::PFHRGBEstimation<PointT, pcl::Normal, SignatureT> pfhrgb;
+		pfhrgb.setInputCloud (pView);
+		pfhrgb.setInputNormals (pNormals);
+		// alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
+
+		// Create an empty kdtree representation, and pass it to the FPFH estimation object.
+		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+		tree = pcl::search::KdTree<PointT>::Ptr(new pcl::search::KdTree<PointT>);
+		pfhrgb.setSearchMethod (tree);
+
+		// Output datasets
+		// * initialize outside
+
+		// Use all neighbors in a sphere of radius 5cm
+		// IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+		pfhrgb.setRadiusSearch (featureRadius);
+
+		// Compute the features
+		pfhrgb.compute (descriptor);
+	}
+
+
+	DescriptorPtr getDescriptionA()
+	{
+		return m_DescriptorA;
+	}
+
+
+	DescriptorPtr getDescriptionB()
+	{
+		return m_DescriptorB;
+	}
+
+
+private:
+	void downsample(PointCloudPtr pCloud, float leafSize, PointCloudPtr pFilteredCloud)
+	{
+		CloudjectBase<PointT,SignatureT>::downsample(pCloud, leafSize, pFilteredCloud);
+	}
+
+	DescriptorPtr m_DescriptorA, m_DescriptorB;
+};
+

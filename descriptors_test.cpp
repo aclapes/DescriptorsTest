@@ -16,140 +16,11 @@
 
 using namespace boost::filesystem;
 
-//class FPFHCategorizer
-//{
-//	typedef pcl::PointXYZRGB PointT;
-//	typedef pcl::Normal	NormalT;
-//	//typedef pcl::FPFHSignature33 SignatureT;
-//	typedef pcl::PFHRGBSignature250 SignatureT;
-//	typedef pcl::PointCloud<PointT> PointCloud;
-//	typedef pcl::PointCloud<NormalT> NormalCloud;
-//	typedef pcl::PointCloud<PointT>::Ptr PointCloudPtr;
-//	typedef pcl::PointCloud<NormalT>::Ptr NormalCloudPtr;
-//	typedef pcl::PointCloud<SignatureT> Descriptor;
-//	typedef pcl::PointCloud<SignatureT>::Ptr DescriptorPtr;
-//	typedef CloudjectModel<PointT, SignatureT> CloudjectModel;
-//	typedef Cloudject<PointT, SignatureT> Cloudject;
-//
-//public:
-//	FPFHCategorizer(float normalRadius, float fpfhRadius)
-//		: m_NormalRadius(normalRadius), m_FpfhRadius(fpfhRadius)
-//	{
-//
-//	}
-//
-//	void setTrainCloudjects(std::vector<CloudjectModel> models)
-//	{
-//		m_TrModels = models;
-//	}
-//
-//	void extractNormalsFromView(PointCloudPtr pCloud, 
-//		NormalCloudPtr pNormals)
-//	{
-//		// Create the normal estimation class, and pass the input dataset to it
-//		pcl::NormalEstimation<PointT, NormalT> ne;
-//		ne.setInputCloud (pCloud);
-//
-//		// Create an empty kdtree representation, and pass it to the normal estimation object.
-//		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-//		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
-//		ne.setSearchMethod (tree);
-//
-//		// Output datasets
-//		// *initialized outside
-//
-//		// Use all neighbors in a sphere of radius 3cm
-//		ne.setRadiusSearch (m_NormalRadius);
-//
-//		// Compute the features
-//		ne.compute (*pNormals);
-//	}
-//
-//	void computeFPFHDescriptor(
-//		PointCloudPtr pCloud, 
-//		NormalCloudPtr pNormals,
-//		DescriptorPtr fpfhs)
-//	{
-//		pcl::FPFHEstimation<PointT, NormalT, SignatureT> fpfh;
-//		fpfh.setInputCloud (pCloud);
-//		fpfh.setInputNormals (pNormals);
-//		// alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
-//
-//		// Create an empty kdtree representation, and pass it to the FPFH estimation object.
-//		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-//		pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>);
-//
-//		fpfh.setSearchMethod (tree);
-//
-//		// Output datasets
-//		// * initialize outside
-//
-//		// Use all neighbors in a sphere of radius 5cm
-//		// IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
-//		fpfh.setRadiusSearch (m_FpfhRadius);
-//
-//		// Compute the features
-//		fpfh.compute (*fpfhs);
-//	}
-//
-//
-//	//void categorize(std::vector<Cloudject> cloudjects, DescriptorPtr fpfhs, int& category)
-//	//{
-//	//	int closerCloudject;
-//
-//	//	float dist;
-//	//	float closerCloudjectDist = std::numeric_limits<float>::infinity();
-//
-//	//	for (int i = 0; i < cloudjects.size(); i++)
-//	//	{
-//	//		dist = cloudjects[i].matchView(fpfhs);
-//	//		if (dist < closerCloudjectDist) 
-//	//		{ 
-//	//			closerCloudjectDist = dist;
-//	//			closerCloudject = i;
-//	//		}
-//	//	}
-//
-//	//	// Final categorization as the closer cloudject in term of distance between point signatures
-//	//	category = closerCloudject;
-//	//}
-//
-//
-//	//void perform(std::vector<PointCloudPtr> views, std::vector<int>& categories)
-//	//{
-//	//	// Describe
-//
-//	//	//std::cout << "Feature extraction in training ..." << std::endl;
-//
-//	//	for (int v = 0; v < views.size(); v++)
-//	//	{
-//	//		NormalCloudPtr pViewNormals (new NormalCloud);
-//
-//	//		views[v]
-//	//		pcl::PointCloud<pcl::FPFHSignature33>::Ptr pViewFPFHSignature (new pcl::PointCloud<pcl::FPFHSignature33>);
-//	//		computeFPFHDescriptor(views[v], pViewNormals, pViewFPFHSignature);
-//
-//	//		int category;
-//	//		categorize(m_TrCloudjects, pViewFPFHSignature, category);
-//	//		//std::cout << category << std::endl;
-//	//		categories.push_back(category);
-//	//	}
-//	//}
-//
-//private:
-//	std::vector<CloudjectModel> m_TrModels;
-//	std::vector<Cloudject> m_TeCloudjects;
-//
-//	float m_leafSize;
-//	float m_NormalRadius;
-//	float m_FpfhRadius;
-//};
-
 
 class DescriptorTester
 {
-	typedef Cloudject<pcl::PointXYZRGB, pcl::PFHRGBSignature250> Cloudject;
-	typedef CloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250> CloudjectModel;
+	typedef Cloudject<pcl::PointXYZRGB, pcl::FPFHSignature33> Cloudject;
+	typedef CloudjectModel<pcl::PointXYZRGB, pcl::FPFHSignature33> CloudjectModel;
 
 public:
 	DescriptorTester(int numObjects, int numInstancesTrain, int numInstancesTest, float maxCorrespondenceThres)
@@ -217,26 +88,15 @@ public:
 	}
 
 
-	//void downsample(pcl::PointCloud<pcl::PointXYZ>::Ptr view, float leafSize, pcl::PointCloud<pcl::PointXYZ>::Ptr filteredView)
-	//{
-	//	pcl::ApproximateVoxelGrid<pcl::PointXYZ> sor;
-	//	sor.setInputCloud(view);
-	//	sor.setLeafSize(leafSize,leafSize,leafSize);
-	//	sor.filter(*filteredView);
-	//}
-
-
 	void createCloudjectModels(std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> views, int numObjects, int numInstances, 
-		float leafSize, float pointRejectionThresh, std::vector<CloudjectModel>& models)
+		float leafSize, float pointRejectionThresh, float ratioRejectionThresh, float sigmaPenaltyThresh, std::vector<CloudjectModel>& models)
 	{
 		for (int i = 0; i < numObjects; i++)
 		{
-			CloudjectModel model(i, m_NumInstancesTrain, leafSize, pointRejectionThresh);
+			CloudjectModel model(i, m_NumInstancesTrain, leafSize, pointRejectionThresh, ratioRejectionThresh, sigmaPenaltyThresh);
 			for (int j = 0; j < numInstances; j++)
 			{
-				//pcl::PointCloud<pcl::PointXYZ>::Ptr filteredView (new pcl::PointCloud<pcl::PointXYZRGB>);
 				int idx = i*numInstances+j;
-				//downsample(views[idx], leafSize, filteredView);
 				model.addView(views[idx]);
 			}
 
@@ -250,7 +110,9 @@ public:
 		for (int i = 0; i < views.size(); i++)
 		{
 			Cloudject c(views[i], leafSize);
-
+			//// DEBUG
+			//if (/*(i / 4*6*2*3 == 2 ) &&*/ (i % (4*6) >= 20 && i % (4*6) <= 23))
+			//	std::cout << c.getNumOfPointsInOriginalViewA() << " (" << c.getNumOfPointsInViewA() << ")" << std::endl;
 			cjs.push_back(c);
 		}
 	}
@@ -282,21 +144,31 @@ public:
 		{
 			float maxScore = 0;
 			//float minDist = std::numeric_limits<float>::infinity();
-
+			//std::cout << i << ": ";
 			for (int m = 0; m < models.size(); m++)
 			{
 				float score = models[m].match(cloudjects[i]);
+				//std::cout << score << " ";
 				if (score > maxScore)
 				{
 					categories[i] = m;
 					maxScore = score;
 				}
 			}
+			//std::cout << std::endl;
+			//system("pause");
 
 			// TODO: Rejection implementation
 			// if (minDist > m_MaxCorrespondenceThres)
 			// ... assign an arbitrary class ID
 		}
+
+		//for (int i = 0; i < categories.size(); i++)
+		//{
+		//	std::cout << categories[i] << " ";
+		//}
+		//std::cout << std::endl;
+		//system("pause");
 	}
 
 
@@ -319,13 +191,15 @@ void run()
 		//static const float fpfhRadius[] = {0.300, 0.200, 0.150, 0.125, 0.100, 0.075, 0.050};
 
 		// Best
-		static const float modelLeafSizes[] = {0.0225};
+		static const float modelLeafSizes[] = {0.015};
 		static const float leafSizes[] = {0.0225};
-		static const float normalsRadius[] = {0.04};
-		static const float fpfhRadius[] = {0.08};
+		static const float normalsRadius[] = {0.06};
+		static const float fpfhRadius[] = {0.125};
 
 		static const float pointRejectionThresh[] = {1.0};
-
+		static const float ratioRejectionThresh[] = {0.99, 0.995, 0.999};//0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 1};
+		static const float sigmaPenaltyThresh[] = { /*0.095, 0.096, 0.097, 0.098, 0.099, */0.1/*, 0.11, 0.12, 0.13, 0.14, 0.15*/};
+		
 		//static const float modelLeafSizes[] = {0.030}; //, 0.010};
 		//static const float leafSizes[] = {0.030};//{0.010, 0.015, 0.020, 0.03};
 		//static const float normalsRadius[] = {0.08, 0.07, 0.06}; //, 0.04, 0.03, 0.02, 0.01};//{0.01, 0.03, 0.06};
@@ -337,7 +211,17 @@ void run()
 		std::vector<float> vFpfhRadius (fpfhRadius, fpfhRadius + sizeof(fpfhRadius) / sizeof(fpfhRadius[0]) );
 
 		std::vector<float> vPointRejectionThresh (pointRejectionThresh, pointRejectionThresh + sizeof(pointRejectionThresh) / sizeof(pointRejectionThresh[0]) );
+		std::vector<float> vRatioRejectionThresh (ratioRejectionThresh, ratioRejectionThresh + sizeof(ratioRejectionThresh) / sizeof(ratioRejectionThresh[0]) );
+		std::vector<float> vSigmaPenaltyThresh (sigmaPenaltyThresh, sigmaPenaltyThresh + sizeof(sigmaPenaltyThresh) / sizeof(sigmaPenaltyThresh[0]) );
 
+		// results summary (accuracy and description and categorization times)
+		std::ofstream pSummaryFile ("../results/summary.txt", std::ios::out | std::ios::app);
+		std::ofstream pPredsFile ("../results/predictions.txt", std::ios::out | std::ios::app);
+
+		pSummaryFile << "sigma ratio point leaf_model leaf normal fpfh acc descr_time categ_time" << std::endl;
+
+		for (int s = 0; s < vSigmaPenaltyThresh.size(); s++)
+		for (int r = 0; r < vRatioRejectionThresh.size(); r++) 
 		for (int p = 0; p < vPointRejectionThresh.size(); p++)
 		{
 		for (int m = 0; m < vModelLeafSizes.size(); m++)
@@ -348,13 +232,15 @@ void run()
 				{
 					for (int k = 0; k < vFpfhRadius.size(); k++)
 					{		
-						std::cout << vPointRejectionThresh[p] << " "
+						std::cout << vSigmaPenaltyThresh[s] << " "
+								  << vRatioRejectionThresh[r] << " " << vPointRejectionThresh[p] << " "
 								  << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " 
 							      << vNormalsRadius[j] << " " << vFpfhRadius[k] << " ";
 
 						// Downsample train
 						std::vector<CloudjectModel> cjModels;
-						createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vModelLeafSizes[m], vPointRejectionThresh[p], cjModels);
+						createCloudjectModels(trViews, m_NumObjects, m_NumInstancesTrain, vModelLeafSizes[m], 
+							vPointRejectionThresh[p], vRatioRejectionThresh[r], vSigmaPenaltyThresh[s], cjModels);
 						// Downsample test
 						std::vector<Cloudject> cjs;
 						createCloudjects(teViews, vLeafSizes[i], cjs); 
@@ -394,17 +280,14 @@ void run()
 
 						// Save to file
 
-						// results summary (accuracy and description and categorization times)
-						std::ofstream pSummaryFile ("../results/summary.txt", std::ios::out | std::ios::app);
-
 						std::stringstream summaryline;
-						summaryline << vPointRejectionThresh[p] << " " << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " 
-									<< vNormalsRadius[j] << " " << vFpfhRadius[k] << " " << accuracy << " " << descriptionTime << " " 
-									<< categorizationTime << std::endl;
-
+						summaryline << vSigmaPenaltyThresh[s] << " "
+								    << vRatioRejectionThresh[r] << " " << vPointRejectionThresh[p] << " "
+								    << vModelLeafSizes[m] << " " << vLeafSizes[i] << " " 
+							        << vNormalsRadius[j] << " " << vFpfhRadius[k] << " " 
+								    << accuracy << " " << descriptionTime << " " << categorizationTime << std::endl;
 						pSummaryFile << summaryline.str();
 
-						std::ofstream pPredsFile ("../results/predictions.txt", std::ios::out | std::ios::app);
 						std::copy(predictions.begin(), predictions.end(), std::ostream_iterator<int>(pPredsFile, " "));
 						pPredsFile << std::endl;
 					}

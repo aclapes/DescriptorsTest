@@ -3,7 +3,6 @@
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/fpfh.h>
-#include <pcl/features/fpfh_omp.h>
 #include <pcl/features/pfhrgb.h>
 
 #include "Cloudject.hpp"
@@ -508,7 +507,7 @@ private:
 		// FPFH description extraction
 		//
 
-		pcl::FPFHEstimationOMP<PointT,pcl::Normal,pcl::FPFHSignature33> fpfh;
+		pcl::FPFHEstimation<PointT,pcl::Normal,pcl::FPFHSignature33> fpfh;
 		fpfh.setInputCloud (pView);
 		fpfh.setInputNormals (pNormals);
 
@@ -553,7 +552,7 @@ public:
 
 	int getID() { return LFCloudjectModelBase<PointT,pcl::PFHRGBSignature250>::getID(); }
 	
-	void addView(PointCloudPtr pCloud) { LFCloudjectModelBase<PointT,pcl:;PFHRGBSignature250>::addView(pCloud); }
+	void addView(PointCloudPtr pCloud) { LFCloudjectModelBase<PointT,pcl::PFHRGBSignature250>::addView(pCloud); }
 
 	float euclideanDistance() { return LFCloudjectModelBase<PointT,pcl::PFHRGBSignature250>::euclideanDistance(); }
 	float medianDistanceToCentroid(PointCloudPtr pCloud, PointT centroid)

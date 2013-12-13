@@ -6,7 +6,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/common/centroid.h>
 #include <pcl/features/fpfh.h>
-#include <pcl/features/fpfh_omp.h>
+#include <pcl/features/pfhrgb.h>
 #include <pcl/features/normal_3d.h>
 
 
@@ -478,7 +478,7 @@ public:
 		// FPFH description extraction
 		//
 
-		pcl::FPFHEstimationOMP<PointT, pcl::Normal, pcl::FPFHSignature33> fpfh;
+		pcl::FPFHEstimation<PointT, pcl::Normal, pcl::FPFHSignature33> fpfh;
 		fpfh.setInputCloud (pView);
 		fpfh.setInputNormals (pNormals);
 		// alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
@@ -605,7 +605,7 @@ public:
 		// FPFH description extraction
 		//
 
-		pcl::FPFHEstimationOMP<PointT, pcl::Normal, pcl::PFHRGBSignature250> pfhrgb;
+		pcl::PFHRGBEstimation<PointT, pcl::Normal, pcl::PFHRGBSignature250> pfhrgb;
 		pfhrgb.setInputCloud (pView);
 		pfhrgb.setInputNormals (pNormals);
 		// alternatively, if cloud is of tpe PointNormal, do pfhrgb.setInputNormals (cloud);

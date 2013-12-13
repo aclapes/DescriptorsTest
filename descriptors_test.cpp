@@ -16,7 +16,7 @@
 
 using namespace boost::filesystem;
 
-#define FPFH_DESCRIPTION
+//#define FPFH_DESCRIPTION
 
 class DescriptorTester
 {

@@ -16,11 +16,11 @@
 
 using namespace boost::filesystem;
 
-#define DESCRIBE_FPFH
+#define FPFH_DESCRIPTION
 
 class DescriptorTester
 {
-#ifdef DESCRIBE_FPFH
+#ifdef FPFH_DESCRIPTION
 	typedef LFCloudject<pcl::PointXYZRGB, pcl::FPFHSignature33> Cloudject;
 	typedef LFCloudjectModel<pcl::PointXYZRGB, pcl::FPFHSignature33> CloudjectModel;
 #else

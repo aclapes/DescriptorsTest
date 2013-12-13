@@ -70,3 +70,4 @@ penalty sigma ratio point leaf_model leaf normal fpfh acc descr_time categ_time
 1 0.1 0.99 1 0.015 0.0225 0.06 0.125 0.931944 11.087 39.11
 penalty sigma ratio point leaf_model leaf normal fpfh acc descr_time categ_time
 1 0.1 0.99 1 0.015 0.0225 0.06 0.125 0.931944 11.358 37.772
+penalty sigma ratio point leaf_model leaf normal fpfh acc descr_time categ_time

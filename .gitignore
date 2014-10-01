@@ -4,6 +4,8 @@
 # Data
 data/
 Data/
+results/
+xbuild/
 
 # User-specific files
 *.suo

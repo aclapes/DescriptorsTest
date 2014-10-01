@@ -188,7 +188,7 @@ public:
 	}
 
 
-	void run(vector<vector<float> > params)
+	void run()
 	{
 		vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> > trViews, teViews;
 		
@@ -224,20 +224,32 @@ public:
         
 		cout << "Categorizing ... " << endl;
 
-		vector<float> vLeafSizes = params[0];
-		vector<float> vNormalsRadius = params[1];
-		vector<float> vPfhRadius = params[2];
-		vector<float> vPointRejectionThresh = params[3];
+        static const float leafSizes[] = {0.01, 0.02, 0.03};
+        static const float normalsRadius[] = {0.03, 0.05, 0.075};
+        static const float pfhRadius[] = {0.05, 0.075, 0.1, 0.15, 0.2};
+
+		static const float pointRejectionThresh[] = {1.0};//{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+		static const float ratioRejectionThresh[] = {0.7, 0.8, 0.9, 1};
+		static const int sizePenaltyMode[] = {0, 1, 2};
+		static const float sigmaPenaltyThresh[] = { 5, 10, 15, 20 };
+
+		vector<float> vLeafSizes (leafSizes, leafSizes + sizeof(leafSizes) / sizeof(leafSizes[0]) );
+		vector<float> vNormalsRadius (normalsRadius, normalsRadius + sizeof(normalsRadius) / sizeof(normalsRadius[0]) );
+		vector<float> vPfhRadius (pfhRadius, pfhRadius + sizeof(pfhRadius) / sizeof(pfhRadius[0]) );
+		vector<float> vPointRejectionThresh (pointRejectionThresh, pointRejectionThresh + sizeof(pointRejectionThresh) / sizeof(pointRejectionThresh[0]) );
+		vector<float> vRatioRejectionThresh (ratioRejectionThresh, ratioRejectionThresh + sizeof(ratioRejectionThresh) / sizeof(ratioRejectionThresh[0]) );
+		vector<int> vSizePenaltyMode (sizePenaltyMode, sizePenaltyMode + sizeof(sizePenaltyMode) / sizeof(sizePenaltyMode[0]) );
+		vector<float> vSigmaPenaltyThresh (sigmaPenaltyThresh, sigmaPenaltyThresh + sizeof(sigmaPenaltyThresh) / sizeof(sigmaPenaltyThresh[0]) );
 
 		// results summary (accuracy and description and categorization times)
-        string summaryFilePath = "summary.txt";
-        string predsFilePath = "predictions.txt";
-        string scoresFilePath = "scores.txt";
+        string summaryFilePath = string(PARENT_DIR) + "results/summary.txt";
+        string predsFilePath = string(PARENT_DIR) + "results/predictions.txt";
+        string scoresFilePath = string(PARENT_DIR) + "results/scores.txt";
 		ofstream pSummaryFile (summaryFilePath.c_str(), ios::out);
 		ofstream pPredsFile (predsFilePath.c_str(), ios::out);
         ofstream pScoresFile (scoresFilePath.c_str(), ios::out);
 
-		pSummaryFile << "leaf normal pfh point acc descr_time categ_time" << endl;
+		pSummaryFile << "leaf normal pfh point ratio penalty sigma acc descr_time categ_time" << endl;
         
         for (int i = 0; i < vLeafSizes.size(); i++)
         {
@@ -256,13 +268,19 @@ public:
                 float descriptionTime = t.elapsed();
                 
                 for (int p = 0; p < vPointRejectionThresh.size(); p++)
+                for (int r = 0; r < vRatioRejectionThresh.size(); r++)
+                for (int z = 0; z < vSizePenaltyMode.size(); z++)
+                for (int s = 0; s < vSigmaPenaltyThresh.size(); s++)
                 {		
                     cout    << vLeafSizes[i] << " "
                             << vNormalsRadius[j] << " "
                             << vPfhRadius[k] << " "
-                            << vPointRejectionThresh[p] << " ";
+                            << vPointRejectionThresh[p] << " "
+                            << vRatioRejectionThresh[r] << " "
+                            << vSizePenaltyMode[z] << " "
+                            << vSigmaPenaltyThresh[s] << " ";
 
-                    setCloudjectModelsParameters(models, vPointRejectionThresh[p], 0, 0, 0);
+                    setCloudjectModelsParameters(models, vPointRejectionThresh[p], vRatioRejectionThresh[r], vSizePenaltyMode[z], vSigmaPenaltyThresh[s]);
 
                     float accuracy;
                     float categorizationTime;
@@ -272,7 +290,7 @@ public:
 
                     // No sense to have worse models than tests, or to have bigger radius (normals or fpfh) than the voxels' leaf size.
                     if ( vNormalsRadius[j] <= vLeafSizes[i] || vPfhRadius[k] <= vLeafSizes[i]
-                        || vPfhRadius[k] <= vNormalsRadius[j])
+                        || vPfhRadius[k] <= vNormalsRadius[j] || (vSizePenaltyMode[z] == 0 && s > 0)  )
                     {
                         accuracy = 0;
                         descriptionTime = 0;
@@ -297,7 +315,7 @@ public:
                     // Save to file
 
                     vector<float> parameters;
-                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], accuracy, descriptionTime, categorizationTime;
+                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], vRatioRejectionThresh[r], vSizePenaltyMode[z], vSigmaPenaltyThresh[s], accuracy, descriptionTime, categorizationTime;
                     copy(parameters.begin(), parameters.end(), ostream_iterator<float>(pSummaryFile, " "));
                     pSummaryFile << endl;
 
@@ -351,31 +369,8 @@ int main(int argc, char** argv)
     int gwidth = atoi(argv[6]);
     
     DescriptorTester dt (modelsPath, testPath, modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
-    
-    vector<string> leafSizesLStr, normalRadiusLStr, pfhRadiusLStr, ptRejThreshsLStr;
-    boost::split(leafSizesLStr, argv[7], boost::is_any_of(","));
-    boost::split(normalRadiusLStr, argv[8], boost::is_any_of(","));
-    boost::split(pfhRadiusLStr, argv[9], boost::is_any_of(","));
-    boost::split(ptRejThreshsLStr, argv[10], boost::is_any_of(","));
-    
-    vector<vector<float> > validationParams;
-    
-    vector<float> leafSizes, normalRadius, pfhRadius, ptRejThreshs;
-    for (vector<string>::iterator it = leafSizesLStr.begin(); it != leafSizesLStr.end(); ++it)
-        leafSizes.push_back(stof(*it));
-    for (vector<string>::iterator it = normalRadiusLStr.begin(); it != normalRadiusLStr.end(); ++it)
-        normalRadius.push_back(stof(*it));
-    for (vector<string>::iterator it = pfhRadiusLStr.begin(); it != pfhRadiusLStr.end(); ++it)
-        pfhRadius.push_back(stof(*it));
-    for (vector<string>::iterator it = ptRejThreshsLStr.begin(); it != ptRejThreshsLStr.end(); ++it)
-        ptRejThreshs.push_back(stof(*it));
-    
-    validationParams.push_back(leafSizes);
-    validationParams.push_back(normalRadius);
-    validationParams.push_back(pfhRadius);
-    validationParams.push_back(ptRejThreshs);
 
-	dt.run(validationParams);
+	dt.run();
 
 	return 0;
 }

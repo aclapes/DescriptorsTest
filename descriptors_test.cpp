@@ -42,7 +42,6 @@ using namespace std;
 #define NUM_OF_PARTITIONS_VAL     5
 #define SEED                      71
 #define SUMMARY_FILEPATH          "summary.txt"
-#define PREDICTIONS_FILEPATH      "predictions.txt"
 #define SCORES_FILEPATH           "scores.txt"
 
 #define FPFH_DESCRIPTION
@@ -141,7 +140,7 @@ public:
         vector<CloudjectPtr> cloudjects;
         createCloudjects(teViewsSrl, cloudjects);
         
-		cout << "Categorizing ... " << endl;
+		cout << "Computing scores ... " << endl;
         
         boost::timer t;
 
@@ -190,10 +189,8 @@ public:
 
                     setCloudjectModelsParameters(models, 0, 0, 0, 0);
 
-                    float accuracy;
                     float categorizationTime;
 
-                    vector<int> predictions;
                     vector<vector<float> > scores;
                     
                     // No sense to have worse models than tests, or to have bigger radius (normals or fpfh) than the voxels' leaf size.
@@ -204,28 +201,22 @@ public:
                         getScores(cloudjects, distances, scores, vPointRejectionThresh[p]);
                         // (t)
                         categorizationTime = t.elapsed();
-
-                        accuracy = xtl::computeAccuracy(groundtruth, predictions);
                     }
                     else
                     {
-                        
-                        accuracy = 0;
                         descriptionTime = 0;
                         distancesComputationTime = 0;
                         categorizationTime = 0;
-                        predictions.resize(cloudjects.size(), -1);
                     }
 
-                    cout    << accuracy << " "
-                            << descriptionTime << " "
+                    cout    << descriptionTime << " "
                             << distancesComputationTime << " "
                             << categorizationTime << endl << endl;
 
                     // Save to file
 
                     std::vector<float> parameters;
-                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], accuracy, descriptionTime, distancesComputationTime, categorizationTime;
+                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], descriptionTime, distancesComputationTime, categorizationTime;
                     copy(parameters.begin(), parameters.end(), ostream_iterator<float>(summariesFile, " "));
                     summariesFile << endl;
                     
@@ -264,6 +255,9 @@ public:
         std::vector<int> oosPredictions, oosGroundtruth;
         oosPredictions.reserve(cvpst.getNumOfPartitions());
         oosGroundtruth.reserve(cvpst.getNumOfPartitions());
+        
+        vector<vector<float> > paramsAccs (cvpst.getNumOfPartitions());
+        
         for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
         {
             cout << p << " ";
@@ -272,7 +266,7 @@ public:
             cvpst.getTrain(groundtruth, p, groundtruthTr);
             cvpst.getTest (groundtruth, p, groundtruthTe);
 
-            std::vector<float> iaccuracies (summaries.size());
+            std::vector<float> paramsInternalAccs (summaries.size());
             for (int i = 0; i < summaries.size(); i++)
             {
                 if (scores[i].empty()) continue;
@@ -288,15 +282,16 @@ public:
                 std::vector<int> predictionsTr;
                 classify(scoresTr, rjtThreshsBest, dcs, predictionsTr);
                 
-                iaccuracies[i] = xtl::computeAccuracy(groundtruthTr, predictionsTr);
+                paramsInternalAccs[i] = xtl::computeAccuracy(groundtruthTr, predictionsTr);
             }
+            
+            paramsAccs[p] = paramsInternalAccs;
 
             int idxValBest;
             float accValBest = 0.f;
             for (int i = 0; i < summaries.size(); i++)
             {
-                float acc = iaccuracies[i];
-
+                float acc = paramsInternalAccs[i];
                 if (acc > accValBest)
                 {
                     idxValBest = i;
@@ -323,16 +318,35 @@ public:
             }
         } std::cout << std::endl;
         
+        // Print groundtruth
         std::cout << "Groundtruth (labels)" << endl;
         std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
         std::cout << std::endl;
         
+        // Print out-of-sample predictions
         std::cout << "Predictions (labels)" << endl;
         std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
         std::cout << std::endl;
         
+        // Get the out of sample accuracy of the outer cv
         float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
-        cout << accMean << endl;
+        cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
+        cout << endl;
+        
+        vector<float> paramsAccsAvg;
+        xtl::collapse(paramsAccs, 0, paramsAccsAvg, xtl::COLLAPSE_AVG);
+        
+        // Show combinations' performance print
+        cout << "Combinations performance: " << endl;
+        xtl::print(paramsAccsAvg);
+        cout << endl;
+        
+        // Index of best combination performance in average
+        std::pair<int,float> paramsMaxAcc = xtl::max(paramsAccsAvg);
+        
+        cout << "Best combination perfomance (#" << paramsMaxAcc.first << "): ";
+        xtl::print(summaries[paramsMaxAcc.first]);
+        cout << endl;
     }
     
     void validateWithRejection(std::vector<float> objRejThreshs, std::vector<int> dontcareIndices)
@@ -351,15 +365,21 @@ public:
             groundtruth.insert(groundtruth.end(), objInstanceIdx.begin(), objInstanceIdx.end());
         }
         
+        std::vector<float> rjtThreshsBest (m_ModelsNames.size(), 0);
+        std::vector<bool> dcs = xtl::indicesToLogicals(m_ModelsNames.size(), dontcareIndices);
+        
         xtl::LoocvPartition cvpst (groundtruth.size(), SEED);
-        vector<float> osaccuracies (cvpst.getNumOfPartitions()); // out of sample acc
         
         // Out-of-sample accuracy
-        vector<int> rjtPredictions (cvpst.getNumOfPartitions());
-        vector<int> rjtGroundtruth (cvpst.getNumOfPartitions());
+        vector<int> oosPredictions, oosGroundtruth;
+        oosPredictions.reserve(cvpst.getNumOfPartitions());
+        oosGroundtruth.reserve(cvpst.getNumOfPartitions());
+        
         vector<vector<float> > paramsAccs (cvpst.getNumOfPartitions());
         for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
         {
+            cout << p << " ";
+
             vector<int> groundtruthTr, groundtruthTe;
             cvpst.getTrainTest(groundtruth, p, groundtruthTr, groundtruthTe);
             
@@ -387,14 +407,9 @@ public:
                     vector<float> rjtThreshsBest, rjtAccuraciesBest;
                     trainRejectionThreshold(scoresTrTr, groundtruthTrTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
                     
-                    //                vector<int> indicesTrVal;
-                    //                xtl::filterByValue(groundtruthTrVal, dontcareIndices, groundtruthTrVal, indicesTrVal, false);
-                    //                xtl::filterByIndex(scoresTrVal, indicesTrVal, vector<int>(), scoresTrVal, true, false);
-                    
                     vector<int> predictionsTrVal;
-                    //                vector<bool> dcs = xtl::indicesToLogicals(rjtThreshsBest.size(), dontcareIndices);
-                    vector<bool> dcs (rjtThreshsBest.size());
-                    classify(scoresTrVal, rjtThreshsBest, dcs, predictionsTrVal);
+                    vector<bool> _dcs (rjtThreshsBest.size());
+                    classify(scoresTrVal, rjtThreshsBest, _dcs, predictionsTrVal);
                     paramsInternalsAccs[pp][i] = xtl::computeAccuracy(groundtruthTrVal, predictionsTrVal);
                 }
             }
@@ -417,20 +432,14 @@ public:
                 }
             }
             
+            cout << accValBest << endl;
+            
             vector<vector<float> > scoresTr, scoresTe;
             cvpst.getTrainTest(scores[idxValBest], p, scoresTr, scoresTe);
             
             vector<float> rjtThreshsBest;
             vector<float> rjtAccuraciesBest;
             trainRejectionThreshold(scoresTr, groundtruthTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
-            
-            //        xtl::print(scoresTr);
-            //        xtl::print(rjtThreshsBest);
-            
-            //        // If want to ommit testing of dontcare classes. But not the case. We want to predict them as -1.
-            //        vector<int> indicesTe;
-            //        xtl::filterByValue(groundtruthTe, dontcareIndices, groundtruthTe, indicesTe, false);
-            //        xtl::filterByIndex(scoresTe, indicesTe, vector<int>(), scoresTe, true, false);
             
             // Replace dontcare class labels by -1 to match the rejectin prediciton (-1)
             vector<int> aux;
@@ -441,16 +450,24 @@ public:
                 aux[indices[i]] = -1;
             
             vector<int> predictionsTe;
-            vector<bool> dcs = xtl::indicesToLogicals(rjtThreshsBest.size(), dontcareIndices);
             classify(scoresTe, rjtThreshsBest, dcs, predictionsTe);
             
-            cout << accValBest << " " << aux[0] << " " << predictionsTe[0] << " " << t.elapsed() << endl;
-            rjtGroundtruth[p] = aux[0];
-            rjtPredictions[p] = predictionsTe[0];
-        }
+            oosGroundtruth.insert(oosGroundtruth.end(), aux.begin(), aux.end());
+            oosPredictions.insert(oosPredictions.end(), predictionsTe.begin(), predictionsTe.end());
+        } std::cout << std::endl;
+        
+        // Print groundtruth
+        std::cout << "Groundtruth (labels)" << endl;
+        std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;
+        
+        // Print out-of-sample predictions
+        std::cout << "Predictions (labels)" << endl;
+        std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;
         
         // Get the out of sample accuracy of the outer cv
-        float accMean = xtl::computeAccuracy(rjtGroundtruth, rjtPredictions);
+        float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
         cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
         cout << endl;
         
@@ -468,6 +485,7 @@ public:
         cout << "Best combination perfomance (#" << paramsMaxAcc.first << "): ";
         xtl::print(summaries[paramsMaxAcc.first]);
         cout << endl;
+
     }
 
 private:

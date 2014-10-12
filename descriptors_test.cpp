@@ -484,8 +484,12 @@ public:
         
         cout << "Best combination perfomance (#" << paramsMaxAcc.first << "): ";
         xtl::print(summaries[paramsMaxAcc.first]);
-        cout << endl;
-
+        
+        cout << "Rejection thresholds combination in best performance (#" << paramsMaxAcc.first << "): ";
+        std::vector<float> objRejThreshsBest, objRejAccsBest;
+        trainRejectionThreshold(scores[paramsMaxAcc.first], groundtruth, objRejThreshs, objRejThreshsBest, objRejAccsBest);
+        xtl::print(objRejThreshsBest);
+        xtl::print(objRejAccsBest);
     }
 
 private:
@@ -865,6 +869,26 @@ int main(int argc, char** argv)
     // *    FIND THE BEST COMBINATION OF PARAMETERS (EXCEPT REJECTION)
     // *---------------------------------------------------------------*
     //-------------------------------------------------------------------//
+    
+    //
+    // The system need to be parametrized
+    //
+    
+    // ./descriptors_test -m "book,cup,dish,grimper,scissors,pillbox,tetrabrick" -v "3,1,3,2,2,5,3" -g 7,3
+    
+    //
+    // Optional arguments came later:
+    //
+    
+    // Specify the output paths
+    //   -O "summary.txt,scores.txt"
+    // Specify the arguments for the computation of scores
+    //   -S -t "../../data/Models/" -e "../../data/Test/" -d 0 -l "0.01,0.02,0.03" -n "0.03,0.05,0.07" -f "0.05,0.075,0.10,0.125,0.15,0.20" -p 0,1,0.1
+    // Choose the validation
+    // -V (-i "3,4")
+    // -Vr "0,0.025,1" -i "3,4", validation with rejection
+    
+    
     int pos;
     
     // Parse system-related arguments
@@ -947,7 +971,7 @@ int main(int argc, char** argv)
             boost::split(pfhRadiusLStr, pfhRadiusStr, boost::is_any_of(","));
             
             float ptRjThreshStart, ptRjThreshStep, ptRjThreshEnd;
-            pcl::console::parse_3x_arguments(argc, argv, "-p", ptRjThreshStart, ptRjThreshStep, ptRjThreshEnd);
+            pcl::console::parse_3x_arguments(argc, argv, "-p", ptRjThreshStart, ptRjThreshEnd, ptRjThreshStep);
             
             std::vector<float> leafSizes;
             splitString(leafSizesStr, ",", leafSizes);

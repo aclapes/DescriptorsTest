@@ -385,6 +385,8 @@ protected:
                 {
                     for (int j = 0; j < pViewDescription->size(); j++)
                     {
+//                        float dist = euclideanDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
+//                        float dist = chisquareDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
                         float dist = battacharyyaDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
                         
                         if (dist < minVal)
@@ -435,7 +437,6 @@ protected:
 				{
 					if ( (!(matches[i][j])) ) // A point in a vie)w can only be matched one time against
 					{
-                        float accSqDistProdAux;
 						float dist = battacharyyaDistanceSignatures( Description->points[p], m_ViewsDescriptions[i]->points[j]);
                         
 						if (dist < minDistToP) // not matched yet and minimum
@@ -494,16 +495,50 @@ protected:
 		return sqrt(1.f - f * accSqProd);
 	}
 
+    float chisquareDistanceSignatures(SignatureT& s1, SignatureT& s2)
+	{
+		float accS1 = 0.f;
+		float accS2 = 0.f;
+        
+        int B = sizeof(s1.histogram) / sizeof(s1.histogram[0]);
+		for (int b = 0; b < B;  b++)
+		{
+			accS1 += s1.histogram[b];
+			accS2 += s2.histogram[b];
+		}
+        
+        float acc = 0.f;
+        for (int b = 0; b < B; b++)
+        {
+            float val1 = s1.histogram[b]/accS1;
+            float val2 = s2.histogram[b]/accS2;
+            
+            float m = (val1 + val2) / 2.f;
+            if (m != 0)
+                acc += powf(val1 - m, 2) / m;
+        }
+        
+		return acc;
+	}
 
 	// Returns the euclidean distance between two fpfh signatures, which are actually histograms
 	float euclideanDistanceSignatures(SignatureT s1, SignatureT s2)
 	{
-		float acc = 0.f;
+        float accS1 = 0.f;
+		float accS2 = 0.f;
         
         int B = sizeof(s1.histogram) / sizeof(s1.histogram[0]);
+		for (int b = 0; b < B;  b++)
+		{
+			accS1 += s1.histogram[b];
+			accS2 += s2.histogram[b];
+		}
+        
+		float acc = 0.f;
+        
 		for (int b = 0; b < B; b++)
 		{
-			acc += powf(s1.histogram[b] - s2.histogram[b], 2.0);
+			acc += powf(s1.histogram[b]/accS1 - s2.histogram[b]/accS2, 2.0);
 		}
 
 		return sqrtf(acc);

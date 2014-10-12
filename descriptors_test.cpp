@@ -5,8 +5,10 @@
 #include <pcl/features/pfhrgb.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/kdtree/kdtree.h>
-#include <stdio.h>
+#include <pcl/console/parse.h>
 
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/classification.hpp>
 #include <boost/timer.hpp>
 #include <boost/assign/std/vector.hpp>
 
@@ -16,11 +18,14 @@
 #include "Cloudject.hpp"
 #include "CloudjectModel.hpp"
 
-#include "CvPartition.hpp"
-
 #include <iterator>
 #include <iostream>
 #include <algorithm>
+
+#include "xtlcommon.h"
+#include "xtio.h"
+#include "xtmath.h"
+#include "xtvalidation.h"
 
 
 using namespace boost::filesystem;
@@ -33,10 +38,29 @@ using namespace std;
 #define PARENT_DIR                "../"
 #endif
 
-#define NUM_OF_PARTITIONS 5
+#define NUM_OF_PARTITIONS         399
+#define NUM_OF_PARTITIONS_VAL     5
+#define SEED                      71
+#define SUMMARY_FILEPATH          "summary.txt"
+#define PREDICTIONS_FILEPATH      "predictions.txt"
+#define SCORES_FILEPATH           "scores.txt"
 
 #define FPFH_DESCRIPTION
+enum {FPFH, PFHRGB};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class Line {
+    std::string data;
+public:
+    friend std::istream &operator>>(std::istream &is, Line &l) {
+        std::getline(is, l.data);
+        return is;
+    }
+    operator std::string() const { return data; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class DescriptorTester
 {
@@ -54,225 +78,36 @@ class DescriptorTester
 
 public:
     
-    DescriptorTester(string modelsPath, string testPath, vector<string> modelsNames, vector<int> modelsNumOfViews, int gheight, int gwidth)
+    DescriptorTester(vector<string> modelsNames, vector<int> modelsNumOfViews, int gheight, int gwidth)
     {
-        m_ModelsPath = modelsPath;
-        m_TestPath = testPath;
         m_ModelsNames = modelsNames;
         m_ModelsNumOfViews = modelsNumOfViews;
         m_GridHeight = gheight;
         m_GridWidth = gwidth;
     }
-
-	void loadObjectViews(const char* path, const char* pcdDir, vector<string> modelsNames,
-		vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> >& views)
-	{
-        pcl::PCDReader reader; // to read pcd files containing point clouds
-        
-        views.resize(modelsNames.size());
-        for (int i = 0; i < modelsNames.size(); i++)
-        {
-            string objectPath = path + modelsNames[i] + "/" + pcdDir;
-            vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> objectViews;
-            
-            if( exists( objectPath ) )
-            {
-                boost::filesystem::directory_iterator end;
-                boost::filesystem::directory_iterator iter(objectPath);
-
-                for( ; iter != end ; ++iter )
-                {
-                    if ( !is_directory( *iter ) && iter->path().extension().string().compare(".pcd") == 0)
-                    {
-                        stringstream ss;
-
-                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr object (new pcl::PointCloud<pcl::PointXYZRGB>);
-                        reader.read( iter->path().string(), *object );
-
-                        objectViews.push_back(object);
-                    }
-                }
-            }
-            
-            views[i] = objectViews;
-        }
-	}
-
-	float computeAccuracy(vector<int> groundtruth, vector<int> matrix)
-	{
-        assert (matrix.size() == groundtruth.size());
-        
-        vector<int> nhits;
-        vector<int> ninstances;
-        
-        for (int i = 0; i < groundtruth.size(); ++i)
-        {
-            while (groundtruth[i] >= ninstances.size())
-            {
-                nhits.push_back(0);
-                ninstances.push_back(0);
-            }
-            
-            if (matrix[i] == groundtruth[i]) nhits[groundtruth[i]]++;
-            ninstances[groundtruth[i]]++;
-        }
     
-        float wtHitsAcc = 0.f; // weighted hits accumulated
-        for (int i = 0; i < ninstances.size(); i++)
-            wtHitsAcc += ( ((float) nhits[i]) / ninstances[i] );
-
-        return wtHitsAcc / ninstances.size();
-	}
-
-	void createCloudjectModels(vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> > views, vector<string> names, vector<CloudjectModelPtr>& models)
-	{
-        assert (names.size() == views.size());
-        
-        models.resize(names.size());
-		for (int i = 0; i < names.size(); i++)
-            models[i] = CloudjectModelPtr(new CloudjectModel(i, names[i], views[i]));
-	}
-
-	void createCloudjects(vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> views, vector<CloudjectPtr>& cjs)
-	{
-        cjs.resize(views.size());
-        for (int i = 0; i < views.size(); i++)
-            cjs[i] = CloudjectPtr(new Cloudject(views[i]));
-	}
-    
-    void downsampleCloudjectModels(vector<CloudjectModelPtr> models, float leafSize)
+    void setModelsDataPath(const char* path)
     {
-        for (int i = 0; i < models.size(); i++)
-			models[i]->downsample(leafSize);
+        m_ModelsPath = std::string(path);
     }
     
-    void downsampleCloudjects(vector<CloudjectPtr> cloudjects, float leafSize)
+    void setTestDataPath(const char* path)
     {
-        for (int i = 0; i < cloudjects.size(); i++)
-			cloudjects[i]->downsample(leafSize);
-    }
-	
-	void setCloudjectModelsParameters(vector<CloudjectModelPtr> models, float pointRejectionThresh, float ratioRejectionThresh, int penaltyMode, float sigmaPenaltyThresh)
-	{
-		for (int m = 0; m < models.size(); m++)
-		{
-            models[m]->setPointScoreRejectionThreshold(pointRejectionThresh);
-            models[m]->setPointRatioRejectionThreshold(ratioRejectionThresh);
-            models[m]->setSizePenaltyMode(penaltyMode);
-            models[m]->setSigmaPenaltyThreshold(sigmaPenaltyThresh);
-		}
-	}
-
-	void describeCloudjectModels(vector<CloudjectModelPtr> models, float normalRadius, float PfhRadius)
-	{
-		for (int i = 0; i < models.size(); i++)
-			models[i]->describe(normalRadius, PfhRadius);
-	}
-
-	void describeCloudjects(vector<CloudjectPtr> cloudjects, float normalRadius, float PfhRadius)
-	{
-		for (int i = 0; i < cloudjects.size(); i++)
-			cloudjects[i]->describe(normalRadius, PfhRadius);
-	}
-    
-    
-	void getCloudjectsDistancesToModels(vector<CloudjectModelPtr> models, vector<CloudjectPtr> cloudjects, vector<vector<vector<vector<float> > > >& distances)
-	{
-		distances.resize(cloudjects.size());
-		for (int i = 0; i < cloudjects.size(); i++)
-		{
-			distances[i].resize(models.size());
-			for (int m = 0; m < models.size(); m++)
-			{
-                distances[i][m];
-				models[m]->getMinimumDistances(cloudjects[i], distances[i][m]);
-			}
-		}
-	}
-    
-    float distToScore(float dist)
-    {
-        return 1 - dist;
+        m_TestPath = std::string(path);
     }
     
-	void categorize(vector<CloudjectPtr> cloudjects, vector<vector<vector<vector<float> > > >& distances, vector<int>& categories, vector<vector<float> >& scores, float ptRejectionThresh = 0.f)
-	{
-		categories.resize(distances.size(), -1); // initialize with "errors" (-1 values)
-        scores.resize(distances.size(), vector<float>(distances[0].size()));
-		for (int i = 0; i < distances.size(); i++)
-		{
-			float maxScore = 0.f;
+    void setDescriptorType(int type)
+    {
+        m_DescriptorType = type;
+    }
+    
+    void setOutputFilePaths(const char* ofSummariesPath, const char* ofScoresPath)
+    {
+        m_OfSummariesPath = std::string(ofSummariesPath);
+        m_OfScoresPath = std::string(ofScoresPath);
+    }
 
-			for (int m = 0; m < distances[i].size(); m++)
-			{
-                float wtScoreAcc = 0.f;
-                float invdistToCameraAcc = 0.f;
-                
-                // #views
-                for (int v = 0; v < distances[i][m].size(); v++)
-                {
-                    float scoreViewAcc = 0.f;
-                    int positives = 0;
-                    
-                    for (int p = 0; p < distances[i][m][v].size(); p++)
-                    {
-                        float scoreVal = distToScore(distances[i][m][v][p]);
-                        if (scoreVal > ptRejectionThresh)
-                        {
-                            scoreViewAcc += scoreVal;
-                            positives ++;
-                        }
-                    }
-                    
-                    float scoreAcc = (positives == 0) ? 0 : (scoreViewAcc / positives);
-                    
-                    pcl::PointXYZ pos = cloudjects[i]->getPosition(v);
-                    float distToCamera = sqrt(pow(pos.x,2) + pow(pos.y,2) + pow(pos.z,2));
-                    
-                    // Weight the view score proportionally to the distance to camera
-                    wtScoreAcc += (1.f/distToCamera * scoreAcc);
-                    invdistToCameraAcc += (1.f/distToCamera);
-                }
-                
-                float finalScore = wtScoreAcc / invdistToCameraAcc;
-                
-                // Check if maximum to categorize as it
-				if (finalScore > maxScore)
-				{
-					categories[i] = m;
-					maxScore = finalScore;
-				}
-
-                scores[i][m] = finalScore;
-			}
-		}
-	}
-//
-//	void categorize(vector<CloudjectModelPtr> models, vector<CloudjectPtr> cloudjects, vector<int>& categories, vector<vector<float> >& scores)
-//	{
-//		categories.resize(cloudjects.size(), -1); // initialize with "errors" (-1 values)
-//        scores.resize(cloudjects.size(), vector<float>(models.size()));
-//		for (int i = 0; i < cloudjects.size(); i++)
-//		{
-//			float maxScore = 0;
-//
-//			for (int m = 0; m < models.size(); m++)
-//			{
-//				float score = models[m]->getScore(cloudjects[i]);
-//
-//				if (score > maxScore)
-//				{
-//					categories[i] = m;
-//					maxScore = score;
-//				}
-//                
-//                scores[i][m] = score;
-//			}
-//		}
-//	}
-
-
-	void run(vector<vector<float> > params)
+	void computeScores(vector<vector<float> > params)
 	{
 		vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> > trViews, teViews;
 		
@@ -296,11 +131,11 @@ public:
         for (int i = 0; i < m_ModelsNames.size(); i++)
         {
             teViewsSrl.reserve(teViewsSrl.size() + teViews[i].size());
-            teViewsSrl.insert(teViewsSrl.begin(), teViews[i].begin(), teViews[i].end());
+            teViewsSrl.insert(teViewsSrl.end(), teViews[i].begin(), teViews[i].end());
             
             vector<int> objectLabels (m_ModelsNumOfViews[i] * m_GridHeight * m_GridWidth, i);
             groundtruth.reserve(groundtruth.size() + objectLabels.size());
-            groundtruth.insert(groundtruth.begin(), objectLabels.begin(), objectLabels.end());
+            groundtruth.insert(groundtruth.end(), objectLabels.begin(), objectLabels.end());
         }
         
         vector<CloudjectPtr> cloudjects;
@@ -316,14 +151,10 @@ public:
 		vector<float> vPointRejectionThresh = params[3];
 
 		// results summary (accuracy and description and categorization times)
-        string summaryFilePath = "summary.txt";
-        string predsFilePath = "matrix.txt";
-        string scoresFilePath = "scores.txt";
-		ofstream pSummaryFile (summaryFilePath.c_str(), ios::out);
-		ofstream pPredsFile (predsFilePath.c_str(), ios::out);
-        ofstream pScoresFile (scoresFilePath.c_str(), ios::out);
+		ofstream summariesFile (m_OfSummariesPath.c_str(), ios::out);
+        ofstream scoresFile (m_OfScoresPath.c_str(), ios::out);
 
-		pSummaryFile << "leaf normal pfh point acc descr_time dist_time categ_time" << endl;
+		summariesFile << "leaf normal pfh point acc descr_time dist_time categ_time" << endl;
         
         for (int i = 0; i < vLeafSizes.size(); i++)
         {
@@ -362,7 +193,7 @@ public:
                     float accuracy;
                     float categorizationTime;
 
-                    vector<int> matrix;
+                    vector<int> predictions;
                     vector<vector<float> > scores;
                     
                     // No sense to have worse models than tests, or to have bigger radius (normals or fpfh) than the voxels' leaf size.
@@ -370,11 +201,11 @@ public:
                     {
                         t.restart();
                         // (t)
-                        categorize(cloudjects, distances, matrix, scores, vPointRejectionThresh[p]);
+                        getScores(cloudjects, distances, scores, vPointRejectionThresh[p]);
                         // (t)
                         categorizationTime = t.elapsed();
 
-                        accuracy = computeAccuracy(groundtruth, matrix);
+                        accuracy = xtl::computeAccuracy(groundtruth, predictions);
                     }
                     else
                     {
@@ -383,7 +214,7 @@ public:
                         descriptionTime = 0;
                         distancesComputationTime = 0;
                         categorizationTime = 0;
-                        matrix.resize(cloudjects.size(), -1);
+                        predictions.resize(cloudjects.size(), -1);
                     }
 
                     cout    << accuracy << " "
@@ -393,213 +224,782 @@ public:
 
                     // Save to file
 
-                    vector<float> parameters;
+                    std::vector<float> parameters;
                     parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], accuracy, descriptionTime, distancesComputationTime, categorizationTime;
-                    copy(parameters.begin(), parameters.end(), ostream_iterator<float>(pSummaryFile, " "));
-                    pSummaryFile << endl;
-
-                    copy(matrix.begin(), matrix.end(), ostream_iterator<int>(pPredsFile, " "));
-                    pPredsFile << endl;
+                    copy(parameters.begin(), parameters.end(), ostream_iterator<float>(summariesFile, " "));
+                    summariesFile << endl;
                     
                     for (int c = 0; c < scores.size(); c++)
                     {
-                        copy(scores[c].begin(), scores[c].end(), ostream_iterator<float>(pScoresFile, " "));
-                        pScoresFile << endl;
-                    } pScoresFile << endl;
+                        copy(scores[c].begin(), scores[c].end(), ostream_iterator<float>(scoresFile, " "));
+                        scoresFile << endl;
+                    } scoresFile << endl;
                 }
             }
         }
 	}
+    
+    void validateWithoutRejection(std::vector<int> dontcareIndices)
+    {
+        std::vector<std::vector<float> > summaries;
+        loadSummariesFromFile(m_OfSummariesPath, summaries, true);
+        
+        std::vector<std::vector<std::vector<float> > > scores;
+        loadScoresFromFile(m_OfScoresPath, scores);
+        
+        std::vector<int> groundtruth;
+        for (int m = 0; m < m_ModelsNumOfViews.size(); m++)
+        {
+            std::vector<int> objInstanceIdx (m_ModelsNumOfViews[m] * m_GridHeight * m_GridWidth, m);
+            groundtruth.reserve(groundtruth.size() + objInstanceIdx.size());
+            groundtruth.insert(groundtruth.end(), objInstanceIdx.begin(), objInstanceIdx.end());
+        }
+        
+        std::vector<float> rjtThreshsBest (m_ModelsNames.size(), 0);
+        std::vector<bool> dcs = xtl::indicesToLogicals(m_ModelsNames.size(), dontcareIndices);
+        
+        // Out-of-sample
+        xtl::LoocvPartition cvpst (groundtruth.size(), SEED);
+        
+        std::vector<int> oosPredictions, oosGroundtruth;
+        oosPredictions.reserve(cvpst.getNumOfPartitions());
+        oosGroundtruth.reserve(cvpst.getNumOfPartitions());
+        for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
+        {
+            cout << p << " ";
+
+            std::vector<int> groundtruthTr, groundtruthTe;
+            cvpst.getTrain(groundtruth, p, groundtruthTr);
+            cvpst.getTest (groundtruth, p, groundtruthTe);
+
+            std::vector<float> iaccuracies (summaries.size());
+            for (int i = 0; i < summaries.size(); i++)
+            {
+                if (scores[i].empty()) continue;
+
+                // Train
+                std::vector<std::vector<float> > scoresTr;
+                cvpst.getTrain(scores[i], p, scoresTr);
+
+                vector<int> indicesTr;
+                xtl::filterByValue(groundtruthTr, dontcareIndices, groundtruthTr, indicesTr, false);
+                xtl::filterByIndex(scoresTr, indicesTr, vector<int>(), scoresTr, true, false);
+                
+                std::vector<int> predictionsTr;
+                classify(scoresTr, rjtThreshsBest, dcs, predictionsTr);
+                
+                iaccuracies[i] = xtl::computeAccuracy(groundtruthTr, predictionsTr);
+            }
+
+            int idxValBest;
+            float accValBest = 0.f;
+            for (int i = 0; i < summaries.size(); i++)
+            {
+                float acc = iaccuracies[i];
+
+                if (acc > accValBest)
+                {
+                    idxValBest = i;
+                    accValBest = acc;
+                }
+            }
+            
+            cout << accValBest << endl;
+
+            std::vector<std::vector<float> > scoresTe;
+            cvpst.getTest(scores[idxValBest], p, scoresTe);
+
+            std::vector<int> indicesTe;
+            xtl::filterByValue(groundtruthTe, dontcareIndices, groundtruthTe, indicesTe, false);
+            xtl::filterByIndex(scoresTe, indicesTe, vector<int>(), scoresTe, true, false);
+            
+            std::vector<int> predictionsTe;
+            classify(scoresTe, rjtThreshsBest, dcs, predictionsTe);
+            
+            if (predictionsTe.size() > 0)
+            {
+                oosPredictions.insert(oosPredictions.end(), predictionsTe.begin(), predictionsTe.end());
+                oosGroundtruth.insert(oosGroundtruth.end(), groundtruthTe.begin(), groundtruthTe.end());
+            }
+        } std::cout << std::endl;
+        
+        std::cout << "Groundtruth (labels)" << endl;
+        std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;
+        
+        std::cout << "Predictions (labels)" << endl;
+        std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;
+        
+        float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
+        cout << accMean << endl;
+    }
+    
+    void validateWithRejection(std::vector<float> objRejThreshs, std::vector<int> dontcareIndices)
+    {
+        std::vector<std::vector<float> > summaries;
+        loadSummariesFromFile(m_OfSummariesPath, summaries, true);
+        
+        std::vector<std::vector<std::vector<float> > > scores;
+        loadScoresFromFile(m_OfScoresPath, scores);
+        
+        std::vector<int> groundtruth;
+        for (int m = 0; m < m_ModelsNumOfViews.size(); m++)
+        {
+            std::vector<int> objInstanceIdx (m_ModelsNumOfViews[m] * m_GridHeight * m_GridWidth, m);
+            groundtruth.reserve(groundtruth.size() + objInstanceIdx.size());
+            groundtruth.insert(groundtruth.end(), objInstanceIdx.begin(), objInstanceIdx.end());
+        }
+        
+        xtl::LoocvPartition cvpst (groundtruth.size(), SEED);
+        vector<float> osaccuracies (cvpst.getNumOfPartitions()); // out of sample acc
+        
+        // Out-of-sample accuracy
+        vector<int> rjtPredictions (cvpst.getNumOfPartitions());
+        vector<int> rjtGroundtruth (cvpst.getNumOfPartitions());
+        vector<vector<float> > paramsAccs (cvpst.getNumOfPartitions());
+        for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
+        {
+            vector<int> groundtruthTr, groundtruthTe;
+            cvpst.getTrainTest(groundtruth, p, groundtruthTr, groundtruthTe);
+            
+            xtl::CvPartition icvpst (groundtruthTr, NUM_OF_PARTITIONS_VAL, SEED);
+            boost::timer t;
+            vector<vector<float> > paramsInternalsAccs (icvpst.getNumOfPartitions());
+            for (int pp = 0; pp < icvpst.getNumOfPartitions(); pp++)
+            {
+                //            cout << p << " : " << pp << endl;
+                vector<int> groundtruthTrTr, groundtruthTrVal;
+                icvpst.getTrainTest(groundtruthTr, pp, groundtruthTrTr, groundtruthTrVal);
+                
+                paramsInternalsAccs[pp].resize(summaries.size(), 0);
+                for (int i = 0; i < summaries.size(); i++)
+                {
+                    if (scores[i].empty()) continue;
+                    
+                    // Train
+                    vector<vector<float> > scoresTr;
+                    cvpst.getTrain(scores[i], p, scoresTr);
+                    
+                    vector<vector<float> > scoresTrTr, scoresTrVal;
+                    icvpst.getTrainTest(scoresTr, pp, scoresTrTr, scoresTrVal);
+                    
+                    vector<float> rjtThreshsBest, rjtAccuraciesBest;
+                    trainRejectionThreshold(scoresTrTr, groundtruthTrTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
+                    
+                    //                vector<int> indicesTrVal;
+                    //                xtl::filterByValue(groundtruthTrVal, dontcareIndices, groundtruthTrVal, indicesTrVal, false);
+                    //                xtl::filterByIndex(scoresTrVal, indicesTrVal, vector<int>(), scoresTrVal, true, false);
+                    
+                    vector<int> predictionsTrVal;
+                    //                vector<bool> dcs = xtl::indicesToLogicals(rjtThreshsBest.size(), dontcareIndices);
+                    vector<bool> dcs (rjtThreshsBest.size());
+                    classify(scoresTrVal, rjtThreshsBest, dcs, predictionsTrVal);
+                    paramsInternalsAccs[pp][i] = xtl::computeAccuracy(groundtruthTrVal, predictionsTrVal);
+                }
+            }
+            
+            xtl::collapse(paramsInternalsAccs, 0, paramsAccs[p], xtl::COLLAPSE_AVG);
+            
+            int idxValBest;
+            float accValBest = 0.f;
+            for (int i = 0; i < summaries.size(); i++)
+            {
+                float accAcc = 0.f;
+                for (int pp = 0; pp < icvpst.getNumOfPartitions(); pp++)
+                    accAcc += paramsInternalsAccs[pp][i];
+                float acc = accAcc / icvpst.getNumOfPartitions();
+                
+                if (acc > accValBest)
+                {
+                    idxValBest = i;
+                    accValBest = acc;
+                }
+            }
+            
+            vector<vector<float> > scoresTr, scoresTe;
+            cvpst.getTrainTest(scores[idxValBest], p, scoresTr, scoresTe);
+            
+            vector<float> rjtThreshsBest;
+            vector<float> rjtAccuraciesBest;
+            trainRejectionThreshold(scoresTr, groundtruthTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
+            
+            //        xtl::print(scoresTr);
+            //        xtl::print(rjtThreshsBest);
+            
+            //        // If want to ommit testing of dontcare classes. But not the case. We want to predict them as -1.
+            //        vector<int> indicesTe;
+            //        xtl::filterByValue(groundtruthTe, dontcareIndices, groundtruthTe, indicesTe, false);
+            //        xtl::filterByIndex(scoresTe, indicesTe, vector<int>(), scoresTe, true, false);
+            
+            // Replace dontcare class labels by -1 to match the rejectin prediciton (-1)
+            vector<int> aux;
+            vector<int> indices;
+            xtl::filterByValue(groundtruthTe, dontcareIndices, aux, indices);
+            aux = groundtruthTe;
+            for (int i = 0; i < indices.size(); i++)
+                aux[indices[i]] = -1;
+            
+            vector<int> predictionsTe;
+            vector<bool> dcs = xtl::indicesToLogicals(rjtThreshsBest.size(), dontcareIndices);
+            classify(scoresTe, rjtThreshsBest, dcs, predictionsTe);
+            
+            cout << accValBest << " " << aux[0] << " " << predictionsTe[0] << " " << t.elapsed() << endl;
+            rjtGroundtruth[p] = aux[0];
+            rjtPredictions[p] = predictionsTe[0];
+        }
+        
+        // Get the out of sample accuracy of the outer cv
+        float accMean = xtl::computeAccuracy(rjtGroundtruth, rjtPredictions);
+        cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
+        cout << endl;
+        
+        vector<float> paramsAccsAvg;
+        xtl::collapse(paramsAccs, 0, paramsAccsAvg, xtl::COLLAPSE_AVG);
+        
+        // Show combinations' performance print
+        cout << "Combinations performance: " << endl;
+        xtl::print(paramsAccsAvg);
+        cout << endl;
+        
+        // Index of best combination performance in average
+        std::pair<int,float> paramsMaxAcc = xtl::max(paramsAccsAvg);
+        
+        cout << "Best combination perfomance (#" << paramsMaxAcc.first << "): ";
+        xtl::print(summaries[paramsMaxAcc.first]);
+        cout << endl;
+    }
 
 private:
-//	int m_NumObjects;
-//
-//	int m_NumInstancesTrain;
-//	int m_NumInstancesTest;
     
-    string m_ModelsPath;
-    string m_TestPath;
-    vector<string> m_ModelsNames;
-    vector<int> m_ModelsNumOfViews;
+    void trainRejectionThreshold(vector<vector<float> > train, vector<int> labels, vector<float> objRejThreshs, vector<float>& threshs, vector<float>& traccuracies)
+    {
+        int numOfModels = train[0].size();
+        
+        std::vector<std::vector<int> > gg (numOfModels, std::vector<int>(train.size()));
+        for (int k = 0; k < numOfModels; k++)
+        {
+            for (int i = 0; i < train.size(); i++)
+                gg[k][i] = (labels[i] == k) ? 1 : (-1);
+        }
+        
+        threshs.resize(numOfModels);
+        traccuracies.resize(numOfModels);
+        for (int k = 0; k < numOfModels; k++)
+        {
+            int rjtIdxBest;
+            float rjtAccBest = 0.f;
+            for (int t = 0; t < objRejThreshs.size(); t++)
+            {
+                std::vector<int> p (train.size());
+                for (int i = 0; i < train.size(); i++)
+                {
+                    p[i] = (train[i][k] > objRejThreshs[t]) ? 1 : (-1);
+                }
+                
+                float acc = xtl::computeAccuracy(gg[k],p);
+                if (acc > rjtAccBest)
+                {
+                    rjtIdxBest = t;
+                    rjtAccBest = acc;
+                }
+            }
+            
+            threshs[k] = objRejThreshs[rjtIdxBest];
+            traccuracies[k] = rjtAccBest;
+        }
+    }
+    
+    void classify(std::vector<std::vector<float> > test, std::vector<float> rjtThreshs, std::vector<bool> dontcares, std::vector<int>& predictions)
+    {
+        predictions.resize(test.size(), -1);
+        
+        for (int i = 0; i < test.size(); i++)
+        {
+            int maxIdx = -1;
+            float maxMargin = 0;
+            
+            for (int k = 0; k < test[i].size(); k++)
+            {
+                float score = test[i][k];
+                float margin = score - rjtThreshs[k];
+                if ( (score > rjtThreshs[k]) && (margin > maxMargin) && !dontcares[k] )
+                {
+                    maxIdx = k;
+                    maxMargin = margin;
+                }
+            }
+            
+            predictions[i] = maxIdx;
+        }
+    }
+    
+    void createCloudjectModels(vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> > views, vector<string> names, vector<CloudjectModelPtr>& models)
+	{
+        assert (names.size() == views.size());
+        
+        models.resize(names.size());
+		for (int i = 0; i < names.size(); i++)
+            models[i] = CloudjectModelPtr(new CloudjectModel(i, names[i], views[i]));
+	}
+    
+	void createCloudjects(vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> views, vector<CloudjectPtr>& cjs)
+	{
+        cjs.resize(views.size());
+        for (int i = 0; i < views.size(); i++)
+            cjs[i] = CloudjectPtr(new Cloudject(views[i]));
+	}
+    
+    void downsampleCloudjectModels(vector<CloudjectModelPtr> models, float leafSize)
+    {
+        for (int i = 0; i < models.size(); i++)
+			models[i]->downsample(leafSize);
+    }
+    
+    void downsampleCloudjects(vector<CloudjectPtr> cloudjects, float leafSize)
+    {
+        for (int i = 0; i < cloudjects.size(); i++)
+			cloudjects[i]->downsample(leafSize);
+    }
+	
+	void setCloudjectModelsParameters(vector<CloudjectModelPtr> models, float pointRejectionThresh, float ratioRejectionThresh, int penaltyMode, float sigmaPenaltyThresh)
+	{
+		for (int m = 0; m < models.size(); m++)
+		{
+            models[m]->setPointScoreRejectionThreshold(pointRejectionThresh);
+            models[m]->setPointRatioRejectionThreshold(ratioRejectionThresh);
+            models[m]->setSizePenaltyMode(penaltyMode);
+            models[m]->setSigmaPenaltyThreshold(sigmaPenaltyThresh);
+		}
+	}
+    
+	void describeCloudjectModels(vector<CloudjectModelPtr> models, float normalRadius, float PfhRadius)
+	{
+		for (int i = 0; i < models.size(); i++)
+			models[i]->describe(normalRadius, PfhRadius);
+	}
+    
+	void describeCloudjects(vector<CloudjectPtr> cloudjects, float normalRadius, float PfhRadius)
+	{
+		for (int i = 0; i < cloudjects.size(); i++)
+			cloudjects[i]->describe(normalRadius, PfhRadius);
+	}
+    
+    
+	void getCloudjectsDistancesToModels(vector<CloudjectModelPtr> models, vector<CloudjectPtr> cloudjects, vector<vector<vector<vector<float> > > >& distances)
+	{
+		distances.resize(cloudjects.size());
+		for (int i = 0; i < cloudjects.size(); i++)
+		{
+			distances[i].resize(models.size());
+			for (int m = 0; m < models.size(); m++)
+			{
+                distances[i][m];
+				models[m]->getMinimumDistances(cloudjects[i], distances[i][m]);
+			}
+		}
+	}
+    
+    float distToScore(float dist)
+    {
+        return 1 - dist;
+    }
+    
+	void getScores(vector<CloudjectPtr> cloudjects, vector<vector<vector<vector<float> > > >& distances, vector<vector<float> >& scores, float ptRejectionThresh = 0.f)
+	{
+        scores.resize(distances.size(), vector<float>(distances[0].size()));
+		for (int i = 0; i < distances.size(); i++)
+		{
+			float maxScore = 0.f;
+            
+			for (int m = 0; m < distances[i].size(); m++)
+			{
+                float wtScoreAcc = 0.f;
+                float invdistToCameraAcc = 0.f;
+                
+                // #views
+                for (int v = 0; v < distances[i][m].size(); v++)
+                {
+                    float scoreViewAcc = 0.f;
+                    int positives = 0;
+                    
+                    for (int p = 0; p < distances[i][m][v].size(); p++)
+                    {
+                        float scoreVal = distToScore(distances[i][m][v][p]);
+                        if (scoreVal > ptRejectionThresh)
+                        {
+                            scoreViewAcc += scoreVal;
+                            positives ++;
+                        }
+                    }
+                    
+                    float scoreAcc = (positives == 0) ? 0 : (scoreViewAcc / positives);
+                    
+                    pcl::PointXYZ pos = cloudjects[i]->getPosition(v);
+                    float distToCamera = sqrt(pow(pos.x,2) + pow(pos.y,2) + pow(pos.z,2));
+                    
+                    // Weight the view score proportionally to the distance to camera
+                    wtScoreAcc += (1.f/distToCamera * scoreAcc);
+                    invdistToCameraAcc += (1.f/distToCamera);
+                }
+                
+                float finalScore = wtScoreAcc / invdistToCameraAcc;
+                scores[i][m] = finalScore;
+			}
+ 		}
+	}
+    
+    void loadSummariesFromFile(std::string filePath, std::vector<std::vector<float> >& matrix, bool header = false)
+    {
+        ifstream file (filePath.c_str());
+        
+        matrix.clear();
+        if (file.is_open())
+        {
+            // Read the lines of the file
+            std::vector<std::string> lines;
+            std::copy(std::istream_iterator<Line>(file),
+                      std::istream_iterator<Line>(),
+                      std::back_inserter(lines));
+            
+            // First line is a header
+            matrix.resize(header ? (lines.size() - 1) : lines.size());
+            for (int i = 0; i < matrix.size(); i++)
+            {
+                vector<string> fields;
+                boost::split(fields, lines[header ? (i+1) : i], boost::is_any_of(" "));
+                
+                matrix[i].resize(fields.size() - 1);
+                for (int j = 0; j < fields.size() - 1; j++)
+                    matrix[i][j] = stof(fields[j]);
+            }
+        }
+    }
+    
+    void loadScoresFromFile(std::string filePath, std::vector<std::vector<std::vector<float> > >& matrices, bool header = false)
+    {
+        ifstream file (filePath.c_str());
+        
+        matrices.clear();
+        if (file.is_open())
+        {
+            // Read the lines of the file
+            std::vector<std::string> lines;
+            std::copy(std::istream_iterator<Line>(file),
+                      std::istream_iterator<Line>(),
+                      std::back_inserter(lines));
+            
+            // First line is a header
+            std::vector<std::vector<float> > matrix;
+            for (int i = 0; i < (header ? (lines.size() - 1) : lines.size()); i++)
+            {
+                vector<string> fields;
+                boost::split(fields, lines[header ? (i+1) : i], boost::is_any_of(" "));
+                
+                if (fields.size() - 1 == 0)
+                {
+                    matrices.push_back(matrix);
+                    
+                    matrix.clear();
+                }
+                else
+                {
+                    vector<float> row (fields.size() - 1);
+                    for (int j = 0; j < fields.size() - 1; j++)
+                        row[j] = stof(fields[j]);
+                    
+                    matrix.push_back(row);
+                }
+            }
+        }
+    }
+    
+    void saveSummariesToFile(string filePath, std::vector<std::vector<float> > summaries)
+    {
+        ofstream summaryFile (filePath.c_str(), ios::out);
+        
+        for (int i = 0; i < summaries.size(); i++)
+        {
+            copy(summaries[i].begin(), summaries[i].end(), ostream_iterator<float>(summaryFile, " "));
+            summaryFile << endl;
+        }
+        
+        summaryFile.close();
+    }
+    
+    void saveScoresToFile(string filePath, std::vector<std::vector<std::vector<float> > > scores)
+    {
+        ofstream scoresFile (filePath.c_str(), ios::out);
+        
+        for (int i = 0; i < scores.size(); i++)
+        {
+            for (int m = 0; m < scores[i].size(); m++)
+            {
+                copy(scores[i][m].begin(), scores[i][m].end(), ostream_iterator<float>(scoresFile, " "));
+                scoresFile << endl;
+            }
+            scoresFile << endl;
+        }
+        
+        scoresFile.close();
+    }
+    
+    void loadObjectViews(const char* path, const char* pcdDir, vector<string> modelsNames,
+                         vector<vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> >& views)
+	{
+        pcl::PCDReader reader; // to read pcd files containing point clouds
+        
+        views.resize(modelsNames.size());
+        for (int i = 0; i < modelsNames.size(); i++)
+        {
+            string objectPath = path + modelsNames[i] + "/" + pcdDir;
+            vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> objectViews;
+            
+            if( exists( objectPath ) )
+            {
+                boost::filesystem::directory_iterator end;
+                boost::filesystem::directory_iterator iter(objectPath);
+                
+                for( ; iter != end ; ++iter )
+                {
+                    if ( !is_directory( *iter ) && iter->path().extension().string().compare(".pcd") == 0)
+                    {
+                        stringstream ss;
+                        
+                        pcl::PointCloud<pcl::PointXYZRGB>::Ptr object (new pcl::PointCloud<pcl::PointXYZRGB>);
+                        reader.read( iter->path().string(), *object );
+                        
+                        objectViews.push_back(object);
+                    }
+                }
+            }
+            
+            views[i] = objectViews;
+        }
+	}
+    
+    std::string m_ModelsPath;
+    std::string m_TestPath;
+    std::vector<string> m_ModelsNames;
+    std::vector<int> m_ModelsNumOfViews;
     int m_GridHeight;
     int m_GridWidth;
+    int m_DescriptorType;
+    
+    std::string m_OfSummariesPath, m_OfScoresPath;
 };
 
-class Line {
-    std::string data;
-public:
-    friend std::istream &operator>>(std::istream &is, Line &l) {
-        std::getline(is, l.data);
-        return is;
-    }
-    operator std::string() const { return data; }
-};
+////////////////////////////////////////////////////////////////////////////////
 
-void loadPredictionsFromFile(std::string filePath, std::vector<std::vector<int> >& matrix, bool header = false)
+//void getColumnMeans(std::vector<std::vector<float> > data, std::vector<float>& means)
+//{
+//    means.resize(data[0].size());
+//    for (int j = 0; j < data[0].size(); j++)
+//        means[j] = xtl::mean(xtl::getCol(data, j));
+//}
+//
+//void getColumnStddevs(std::vector<std::vector<float> > data, std::vector<float>& stddevs)
+//{
+//    stddevs.resize(data[0].size());
+//    for (int j = 0; j < data[0].size(); j++)
+//        stddevs[j] = xtl::stddev(xtl::getCol(data, j));
+//}
+//
+//void standardize(std::vector<std::vector<float> > data, std::vector<float> means, std::vector<float> stddevs, std::vector<std::vector<float> >& stdData)
+//{
+//    stdData.resize(data.size(), std::vector<float>(data[0].size()));
+//    
+//    for (int i = 0; i < data.size(); i++)
+//        for (int j = 0; j < data[i].size(); j++)
+//            stdData[i][j] = (data[i][j] - means[j]) / (stddevs[j] > 0 ? stddevs[j] : 1);
+//}
+
+void splitString(std::string str, std::string separator, std::vector<int>& args)
 {
-    ifstream file (filePath.c_str());
+    // Preprocessing the arguments
+    std::vector<std::string> LStr;
+    boost::split(LStr, str, boost::is_any_of(separator));
     
-    matrix.clear();
-    if (file.is_open())
-    {
-        // Read the lines of the file
-        std::vector<std::string> lines;
-        std::copy(std::istream_iterator<Line>(file),
-                  std::istream_iterator<Line>(),
-                  std::back_inserter(lines));
-        
-        // First line is a header
-        matrix.resize(header ? (lines.size() - 1) : lines.size());
-        for (int i = 0; i < matrix.size(); i++)
-        {
-            vector<string> fields;
-            boost::split(fields, lines[header ? (i+1) : i], boost::is_any_of(" "));
-            
-            matrix[i].resize(fields.size() - 1);
-            for (int j = 0; j < fields.size() - 1; j++)
-                matrix[i][j] = stoi(fields[j]);
-        }
-    }
+    for (vector<string>::iterator it = LStr.begin(); it != LStr.end(); ++it)
+        args.push_back(stoi(*it));
 }
 
-void loadSummariesFromFile(std::string filePath, std::vector<std::vector<float> >& matrix, bool header = false)
+void splitString(std::string str, std::string separator, std::vector<float>& args)
 {
-    ifstream file (filePath.c_str());
+    // Preprocessing the arguments
+    std::vector<std::string> LStr;
+    boost::split(LStr, str, boost::is_any_of(separator));
     
-    matrix.clear();
-    if (file.is_open())
-    {
-        // Read the lines of the file
-        std::vector<std::string> lines;
-        std::copy(std::istream_iterator<Line>(file),
-                  std::istream_iterator<Line>(),
-                  std::back_inserter(lines));
-        
-        // First line is a header
-        matrix.resize(header ? (lines.size() - 1) : lines.size());
-        for (int i = 0; i < matrix.size(); i++)
-        {
-            vector<string> fields;
-            boost::split(fields, lines[header ? (i+1) : i], boost::is_any_of(" "));
-            
-            matrix[i].resize(fields.size() - 1);
-            for (int j = 0; j < fields.size() - 1; j++)
-                matrix[i][j] = stof(fields[j]);
-        }
-    }
+    for (vector<string>::iterator it = LStr.begin(); it != LStr.end(); ++it)
+        args.push_back(stof(*it));
 }
 
-void loadScoresFromFile(std::string filePath, std::vector<std::vector<std::vector<float> > >& matrices, bool header = false)
+void splitString(std::string str, std::string separator, std::vector<string>& args)
 {
-    ifstream file (filePath.c_str());
-    
-    matrices.clear();
-    if (file.is_open())
-    {
-        // Read the lines of the file
-        std::vector<std::string> lines;
-        std::copy(std::istream_iterator<Line>(file),
-                  std::istream_iterator<Line>(),
-                  std::back_inserter(lines));
-        
-        // First line is a header
-        std::vector<std::vector<float> > matrix;
-        for (int i = 0; i < (header ? (lines.size() - 1) : lines.size()); i++)
-        {
-            vector<string> fields;
-            boost::split(fields, lines[header ? (i+1) : i], boost::is_any_of(" "));
-            
-            if (fields.size() - 1 == 0)
-            {
-                matrices.push_back(matrix);
-                
-                matrix.clear();
-            }
-            else
-            {
-                vector<float> row (fields.size() - 1);
-                for (int j = 0; j < fields.size() - 1; j++)
-                    row[j] = stof(fields[j]);
-                
-                matrix.push_back(row);
-            }
-        }
-    }
+    args.clear();
+    boost::split(args, str, boost::is_any_of(separator));
 }
 
 int main(int argc, char** argv)
 {
-    string modelsPath = string(argv[1]);
-    string testPath = string(argv[2]);
+    //-------------------------------------------------------------------//
+    // *---------------------------------------------------------------*
+    // *    FIND THE BEST COMBINATION OF PARAMETERS (EXCEPT REJECTION)
+    // *---------------------------------------------------------------*
+    //-------------------------------------------------------------------//
+    int pos;
     
-    vector<string> modelsNamesLStr, modelsNumOfViewsLStr;
-    boost::split(modelsNamesLStr, argv[3], boost::is_any_of(","));
-    boost::split(modelsNumOfViewsLStr, argv[4], boost::is_any_of(","));
-    
-    vector<int> modelsNumOfViews;
-    for (vector<string>::iterator it = modelsNumOfViewsLStr.begin(); it != modelsNumOfViewsLStr.end(); ++it)
-    {
-        modelsNumOfViews.push_back(stoi(*it));
-    }
-    
-    int gheight = atoi(argv[5]);
-    int gwidth = atoi(argv[6]);
-    
-    vector<string> leafSizesLStr, normalRadiusLStr, pfhRadiusLStr, ptRejThreshsLStr;
-    boost::split(leafSizesLStr, argv[7], boost::is_any_of(","));
-    boost::split(normalRadiusLStr, argv[8], boost::is_any_of(","));
-    boost::split(pfhRadiusLStr, argv[9], boost::is_any_of(","));
-    boost::split(ptRejThreshsLStr, argv[10], boost::is_any_of(","));
-    
-    vector<vector<float> > validationParams;
-    
-    vector<float> leafSizes, normalRadius, pfhRadius, ptRejThreshs;
-    for (vector<string>::iterator it = leafSizesLStr.begin(); it != leafSizesLStr.end(); ++it)
-        leafSizes.push_back(stof(*it));
-    for (vector<string>::iterator it = normalRadiusLStr.begin(); it != normalRadiusLStr.end(); ++it)
-        normalRadius.push_back(stof(*it));
-    for (vector<string>::iterator it = pfhRadiusLStr.begin(); it != pfhRadiusLStr.end(); ++it)
-        pfhRadius.push_back(stof(*it));
-    for (vector<string>::iterator it = ptRejThreshsLStr.begin(); it != ptRejThreshsLStr.end(); ++it)
-        ptRejThreshs.push_back(stof(*it));
-    
-    validationParams.push_back(leafSizes);
-    validationParams.push_back(normalRadius);
-    validationParams.push_back(pfhRadius);
-    validationParams.push_back(ptRejThreshs);
+    // Parse system-related arguments
 
-//    DescriptorTester dt (modelsPath, testPath, modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
-//	dt.run(validationParams);
+    std::string modelsNamesStr;
+    pcl::console::parse_argument(argc, argv, "-m", modelsNamesStr);
+    std::vector<std::string> modelsNamesLStr;
+    splitString(modelsNamesStr, ",", modelsNamesLStr);
     
-    vector<int> objectInstancesLabels;
-    for (int m = 0; m < modelsNumOfViews.size(); m++)
+    std::string modelsNumOfViewsStr;
+    pcl::console::parse_argument(argc, argv, "-v", modelsNumOfViewsStr);
+    std::vector<int> modelsNumOfViews;
+    splitString(modelsNumOfViewsStr, ",", modelsNumOfViews);
+    
+    int gheight, gwidth;
+    pcl::console::parse_2x_arguments(argc, argv, "-g", gheight, gwidth);
+    
+    ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    DescriptorTester dt (modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
+    ////////////////////////////////////////////////////////////////////////
+    
+    // Parse 'output file'-related arguments
+    
+    bool bFilenamesParsed = false;
+    string ofSummariesPath, ofScoresPath;
+    if ( (pos = pcl::console::find_argument(argc, argv, "-O")) >= 0 )
     {
-        vector<int> objInstanceIdx (modelsNumOfViews[m] * gheight * gwidth, m);
-        objectInstancesLabels.reserve(objectInstancesLabels.size() + objInstanceIdx.size());
-        objectInstancesLabels.insert(objectInstancesLabels.end(), objInstanceIdx.begin(), objInstanceIdx.end());
+        std::string ofPathsStr;
+        pcl::console::parse_argument(argc, argv, "-O", ofPathsStr);
+        std::vector<std::string> ofPaths;
+        splitString(ofPathsStr, ",", ofPaths);
+        
+        assert(ofPaths.size() == 2);
+        
+        ofSummariesPath = ofPaths[0];
+        ofScoresPath = ofPaths[1];
+        
+        bFilenamesParsed = true;
     }
     
-    copy(objectInstancesLabels.begin(), objectInstancesLabels.end(), std::ostream_iterator<int>(std::cout, " "));
+    ////////////////////////////////////////////////////////////////////////
+    // Set parameters to the system
+    if (bFilenamesParsed)
+        dt.setOutputFilePaths(ofSummariesPath.c_str(), ofScoresPath.c_str());
+    else
+        dt.setOutputFilePaths(SUMMARY_FILEPATH, SCORES_FILEPATH);
+    ////////////////////////////////////////////////////////////////////////
+
+    // Parse data and score computation-related parameters
     
-    string summaryFilePath = "summary.txt";
-    string predictionsFilePath = "predictions.txt";
-    string scoresFilePath = "scores.txt";
-    
-    std::vector<std::vector<float> > summaries;
-    loadSummariesFromFile(summaryFilePath, summaries, true);
-    
-//    std::vector<std::vector<int> > predictions;
-//    loadPredictionsFromFile(predictionsFilePath, predictions);
-    
-    std::vector<std::vector<std::vector<float> > > scores;
-    loadScoresFromFile(scoresFilePath, scores);
-    
-    CvPartition cvpst (objectInstancesLabels, NUM_OF_PARTITIONS);
-    for (int i = 0; i < NUM_OF_PARTITIONS; i++)
+    if ( (pos = pcl::console::find_argument(argc, argv, "-S")) >= 0 )
     {
-        std::vector<int> partition = cvpst.getPartition(i, false);
-        copy(partitions.begin(), partitions.end(), std::ostream_iterator<int>(std::cout, " "));
+        // Parsing (not descriptor dependent)
+        
+        std::string modelsPathStr;
+        pcl::console::parse_argument(argc, argv, "-t", modelsPathStr);
+        
+        std::string testPathStr;
+        pcl::console::parse_argument(argc, argv, "-e", testPathStr);
+        
+        int descriptorType;
+        pcl::console::parse_argument(argc, argv, "-d", descriptorType);
+        
+        // Parsing (descriptor dependent)
+        
+        std::vector<std::vector<float> > params;
+        
+        if (descriptorType == FPFH || descriptorType == PFHRGB)
+        {
+            std::string leafSizesStr;
+            pcl::console::parse_argument(argc, argv, "-l", leafSizesStr);
+            
+            std::string normalRadiusStr;
+            pcl::console::parse_argument(argc, argv, "-n", normalRadiusStr);
+            
+            std::string pfhRadiusStr;
+            pcl::console::parse_argument(argc, argv, "-f", pfhRadiusStr);
+            std::vector<std::string> pfhRadiusLStr;
+            boost::split(pfhRadiusLStr, pfhRadiusStr, boost::is_any_of(","));
+            
+            float ptRjThreshStart, ptRjThreshStep, ptRjThreshEnd;
+            pcl::console::parse_3x_arguments(argc, argv, "-p", ptRjThreshStart, ptRjThreshStep, ptRjThreshEnd);
+            
+            std::vector<float> leafSizes;
+            splitString(leafSizesStr, ",", leafSizes);
+            
+            std::vector<float> normalRadius;
+            splitString(normalRadiusStr, ",", normalRadius);
+            
+            std::vector<float> pfhRadius;
+            splitString(pfhRadiusStr, ",", pfhRadius);
+            
+            std::vector<float> ptRjtThreshs = xtl::linspace(ptRjThreshStart, ptRjThreshEnd, ptRjThreshStep, true);
+            
+            params += leafSizes, normalRadius, pfhRadius, ptRjtThreshs;
+        }
+        
+        ////////////////////////////////////////////////////////////////////////
+        // More settings
+        dt.setDescriptorType(descriptorType);
+        dt.setModelsDataPath(modelsPathStr.c_str());
+        dt.setTestDataPath(testPathStr.c_str());
+        ////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////
+        // Computations of scores
+        dt.computeScores(params);
+        ////////////////////////////////////////////////////////////////////////
+
     }
 
+    // Validate without rejection
+    
+    if ( (pos = pcl::console::find_argument(argc, argv, "-V")) >= 0 )
+    {
+        // Parse dontcares (optional)
+        vector<int> dontcareIndices;
+        if ( (pos = pcl::console::find_argument(argc, argv, "-i")) >= 0 )
+        {
+            std::string dontcareIndicesStr;
+            pcl::console::parse_argument(argc, argv, "-i", dontcareIndicesStr);
+            
+            splitString(dontcareIndicesStr, ",", dontcareIndices);
+        }
+        
+        // Run the validation
+        dt.validateWithoutRejection(dontcareIndices);
+    }
+    
+    // Validate with rejection
+    
+    if ( (pos = pcl::console::find_argument(argc, argv, "-Vr")) >= 0 )
+    {
+        // Parse rejection thresholds
+        float objRjThreshStart, objRjThreshStep, objRjThreshEnd;
+        pcl::console::parse_3x_arguments(argc, argv, "-Vr", objRjThreshStart, objRjThreshStep, objRjThreshEnd);
+        
+        vector<float> objRejThreshs = xtl::linspace(objRjThreshStart, objRjThreshEnd, objRjThreshStep, false);
+        
+        // Parse dontcares (optional)
+        vector<int> dontcareIndices;
+        if ( (pos = pcl::console::find_argument(argc, argv, "-i")) >= 0 )
+        {
+            std::string dontcareIndicesStr;
+            pcl::console::parse_argument(argc, argv, "-i", dontcareIndicesStr);
+            
+            splitString(dontcareIndicesStr, ",", dontcareIndices);
+        }
+        
+        // Run the validation
+        dt.validateWithRejection(objRejThreshs, dontcareIndices);
+    }
+    
 	return 0;
 }

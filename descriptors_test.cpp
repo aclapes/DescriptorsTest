@@ -328,6 +328,12 @@ public:
         std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
         std::cout << std::endl;
         
+        // Print confusion matrix
+        std::cout << "Confusion matrix" << endl;
+        std::vector<std::vector<float> > cnfMat;
+        xtl::computeConfusion(oosGroundtruth, oosPredictions, cnfMat, true); // normalized
+        xtl::print(cnfMat);
+
         // Get the out of sample accuracy of the outer cv
         float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
         cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
@@ -465,6 +471,12 @@ public:
         std::cout << "Predictions (labels)" << endl;
         std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
         std::cout << std::endl;
+        
+        // Print confusion matrix
+        std::cout << "Confusion matrix" << endl;
+        std::vector<std::vector<float> > cnfMat;
+        xtl::computeConfusion(oosGroundtruth, oosPredictions, cnfMat, true); // normalized
+        xtl::print(cnfMat);
         
         // Get the out of sample accuracy of the outer cv
         float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);

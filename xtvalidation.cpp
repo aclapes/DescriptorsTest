@@ -44,33 +44,38 @@ float xtl::computeAccuracy(std::vector<int> groundtruth, std::vector<int> predic
     return accSum / instancesMap.size();
 }
 
-void xtl::computeConfusion(std::vector<int> groundtruth, std::vector<int> predictions, std::vector<std::vector<int> >& confusions)
+void xtl::computeConfusion(std::vector<int> groundtruth, std::vector<int> predictions, std::vector<std::vector<float> >& confusions, bool bNormalize)
 {
-    std::vector<int> nHits;
-    std::vector<int> nInstances;
+    std::map<std::string,int> instancesMap;
     
     for (int i = 0; i < groundtruth.size(); ++i)
+        instancesMap[std::to_string(groundtruth[i])]++;
+    
+    std::map<std::string,int> hitsMap;
+    std::map<std::string,int> LUMap; // look-up map
+    
+    std::map<std::string,int>::iterator instancesIt;
+    int c = 0;
+    for (instancesIt = instancesMap.begin(); instancesIt != instancesMap.end(); instancesIt++)
     {
-        while (groundtruth[i] >= nInstances.size())
-        {
-            nHits.push_back(0);
-            nInstances.push_back(0);
-        }
-        
-        nInstances[groundtruth[i]]++;
-        
-        if (predictions[i] == groundtruth[i])
-            nHits[groundtruth[i]]++;
+        hitsMap[instancesIt->first] = 0;
+        LUMap[instancesIt->first] = c++;
     }
     
-    confusions.resize(nInstances.size());
-    for (int i = 0; i < confusions.size(); i++)
-        confusions[i].resize(nInstances.size(), 0);
+    for (int i = 0; i < groundtruth.size(); ++i)
+        if (groundtruth[i] == predictions[i])
+            hitsMap[std::to_string(groundtruth[i])]++;
     
+    std::cout << hitsMap.size() << std::endl;
+    
+    confusions.clear();
+    confusions.resize( hitsMap.size(), std::vector<float>(hitsMap.size(), 0) );
     for (int i = 0; i < groundtruth.size(); i++)
     {
-        if (predictions[i] >= 0)
-            confusions[groundtruth[i]][predictions[i]]++;
+        int row = LUMap[std::to_string(groundtruth[i])];
+        int col = LUMap[std::to_string(predictions[i])];
+        float divider = instancesMap[std::to_string(groundtruth[i])];
+        confusions[row][col] += 1.f/divider;
     }
 }
 

@@ -21,7 +21,7 @@ namespace xtl
     //
     
     float computeAccuracy(std::vector<int> groundtruth, std::vector<int> predictions);
-    void computeConfusion(std::vector<int> groundtruth, std::vector<int> predictions, std::vector<std::vector<int> >& confusions);
+    void computeConfusion(std::vector<int> groundtruth, std::vector<int> predictions, std::vector<std::vector<float> >& confusions, bool bNormalize = false);
     
     std::vector<float> linspace(float a, float b, float step, bool bExtremaIn);
     

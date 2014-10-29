@@ -7,6 +7,8 @@
 //
 
 #include "xtio.h"
+#include <iterator>
+#include <string>
 
 template<typename T>
 void xtl::print(std::vector<T> v)
@@ -21,7 +23,7 @@ void xtl::print(std::vector<std::vector<T> > w)
     for (int i = 0; i < w.size(); i++)
     {
         std::copy(w[i].begin(), w[i].end(), std::ostream_iterator<T>(std::cout, "\t"));
-        std::cout << std::endl;
+        std::cout << std::endl;;
     }
     std::cout << std::endl;
 }

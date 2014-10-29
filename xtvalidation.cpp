@@ -8,6 +8,17 @@
 
 #include "xtvalidation.h"
 #include <map>
+#include <string>
+#include <random>
+#include <algorithm>
+#include <iterator>
+#include <iostream>
+
+struct RNG {
+    int operator() (int n) {
+        return std::rand() / (1.0 + RAND_MAX) * n;
+    }
+};
 
 //
 // Functions
@@ -18,7 +29,7 @@ float xtl::computeAccuracy(std::vector<int> groundtruth, std::vector<int> predic
     std::map<std::string,int> instancesMap;
     
     for (int i = 0; i < groundtruth.size(); ++i)
-        instancesMap[std::to_string(groundtruth[i])]++;
+        instancesMap[std::to_string((long long) (long long) groundtruth[i])]++;
     
     std::map<std::string,int> hitsMap;
     
@@ -28,7 +39,7 @@ float xtl::computeAccuracy(std::vector<int> groundtruth, std::vector<int> predic
     
     for (int i = 0; i < groundtruth.size(); ++i)
         if (groundtruth[i] == predictions[i])
-            hitsMap[std::to_string(groundtruth[i])]++;
+            hitsMap[std::to_string((long long) groundtruth[i])]++;
     
     instancesIt = instancesMap.begin();
     std::map<std::string,int>::iterator hitsIt = hitsMap.begin();
@@ -49,7 +60,7 @@ void xtl::computeConfusion(std::vector<int> groundtruth, std::vector<int> predic
     std::map<std::string,int> instancesMap;
     
     for (int i = 0; i < groundtruth.size(); ++i)
-        instancesMap[std::to_string(groundtruth[i])]++;
+        instancesMap[std::to_string((long long) groundtruth[i])]++;
     
     std::map<std::string,int> hitsMap;
     std::map<std::string,int> LUMap; // look-up map
@@ -64,7 +75,7 @@ void xtl::computeConfusion(std::vector<int> groundtruth, std::vector<int> predic
     
     for (int i = 0; i < groundtruth.size(); ++i)
         if (groundtruth[i] == predictions[i])
-            hitsMap[std::to_string(groundtruth[i])]++;
+            hitsMap[std::to_string((long long) groundtruth[i])]++;
     
     std::cout << hitsMap.size() << std::endl;
     
@@ -72,9 +83,9 @@ void xtl::computeConfusion(std::vector<int> groundtruth, std::vector<int> predic
     confusions.resize( hitsMap.size(), std::vector<float>(hitsMap.size(), 0) );
     for (int i = 0; i < groundtruth.size(); i++)
     {
-        int row = LUMap[std::to_string(groundtruth[i])];
-        int col = LUMap[std::to_string(predictions[i])];
-        float divider = instancesMap[std::to_string(groundtruth[i])];
+        int row = LUMap[std::to_string((long long) groundtruth[i])];
+        int col = LUMap[std::to_string((long long) predictions[i])];
+        float divider = instancesMap[std::to_string((long long) groundtruth[i])];
         confusions[row][col] += 1.f/divider;
     }
 }
@@ -107,13 +118,12 @@ xtl::CvPartition::CvPartition(int n, int k, int seed)
 {
     m_NumOfPartitions = k;
     
-    std::default_random_engine g(seed);
-    
     m_Partitions.resize(n);
     for (int i = 0; i < m_Partitions.size(); i++)
         m_Partitions[i] = i % k;
-    
-    std::shuffle(m_Partitions.begin(), m_Partitions.end(), g);
+
+    std::srand(seed);
+	std::random_shuffle(m_Partitions.begin(), m_Partitions.end(), RNG());
 }
 
 xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
@@ -123,7 +133,7 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
     std::map<std::string,std::vector<int> > map;
     for (int i = 0; i < groups.size(); i++)
     {
-        std::string key = std::to_string(groups[i]);
+        std::string key = std::to_string((long long) groups[i]);
         map[key].push_back(i);
     }
     
@@ -143,7 +153,7 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
     
     m_Partitions.resize(groups.size());
     
-    std::default_random_engine g(seed);
+    std::srand(seed);
     
     for (int i = 0; i < labels.size(); i++)
     {
@@ -151,7 +161,7 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
         for (int j = 0; j < indices[i].size(); j++)
             v[j] = j % k;
         
-        std::shuffle(v.begin(), v.end(), g);
+		std::random_shuffle(v.begin(), v.end(), RNG());
         
         for (int j = 0; j < indices[i].size(); j++)
             m_Partitions[indices[i][j]] = v[j];
@@ -253,13 +263,12 @@ template void xtl::CvPartition::getTest(std::vector<std::vector<float> > data, i
 
 xtl::LoocvPartition::LoocvPartition(int n, int seed)
 {
-    std::default_random_engine g(seed);
-    
     m_Partitions.resize(n);
     for (int i = 0; i < m_Partitions.size(); i++)
         m_Partitions[i] = i;
     
-    std::shuffle(m_Partitions.begin(), m_Partitions.end(), g);
+	std::srand(seed);
+    std::random_shuffle(m_Partitions.begin(), m_Partitions.end(), RNG());
 }
 
 xtl::LoocvPartition::LoocvPartition(const LoocvPartition& rhs)

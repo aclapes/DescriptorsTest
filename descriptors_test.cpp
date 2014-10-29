@@ -8,12 +8,8 @@
 #include <pcl/console/parse.h>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/classification.hpp>
 #include <boost/timer.hpp>
 #include <boost/assign/std/vector.hpp>
-
-#include <vector>
-#include <string>
 
 #include "Cloudject.hpp"
 #include "CloudjectModel.hpp"
@@ -28,7 +24,7 @@
 #include "xtvalidation.h"
 
 
-using namespace boost::filesystem;
+//using namespace boost::filesystem;
 using namespace boost::assign;
 using namespace std;
 
@@ -305,17 +301,17 @@ public:
                 oosPredictions.insert(oosPredictions.end(), predictionsTe.begin(), predictionsTe.end());
                 oosGroundtruth.insert(oosGroundtruth.end(), groundtruthTe.begin(), groundtruthTe.end());
             }
-        } std::cout << std::endl;
+        } std::cout << std::endl;;
         
         // Print groundtruth
         std::cout << "Groundtruth (labels)" << endl;
         std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
-        std::cout << std::endl;
+        std::cout << std::endl;;
         
         // Print out-of-sample predictions
         std::cout << "Predictions (labels)" << endl;
         std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
-        std::cout << std::endl;
+        std::cout << std::endl;;
         
         // Print confusion matrix
         std::cout << "Confusion matrix" << endl;
@@ -325,8 +321,8 @@ public:
 
         // Get the out of sample accuracy of the outer cv
         float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
-        cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
-        cout << endl;
+        std::cout << "Out-of-sample accuracy [0,1]: " << accMean << std::endl;
+        std::cout << std::endl;
         
         vector<float> paramsAccsAvg;
         xtl::collapse(paramsAccs, 0, paramsAccsAvg, xtl::COLLAPSE_AVG);
@@ -449,17 +445,17 @@ public:
             
             oosGroundtruth.insert(oosGroundtruth.end(), aux.begin(), aux.end());
             oosPredictions.insert(oosPredictions.end(), predictionsTe.begin(), predictionsTe.end());
-        } std::cout << std::endl;
+        } std::cout << std::endl;;
         
         // Print groundtruth
         std::cout << "Groundtruth (labels)" << endl;
         std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
-        std::cout << std::endl;
+        std::cout << std::endl;;
         
         // Print out-of-sample predictions
         std::cout << "Predictions (labels)" << endl;
         std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
-        std::cout << std::endl;
+        std::cout << std::endl;;
         
         // Print confusion matrix
         std::cout << "Confusion matrix" << endl;
@@ -778,14 +774,14 @@ private:
             string objectPath = path + modelsNames[i] + "/" + pcdDir;
             vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> objectViews;
             
-            if( exists( objectPath ) )
+            if( boost::filesystem::exists( objectPath ) )
             {
                 boost::filesystem::directory_iterator end;
                 boost::filesystem::directory_iterator iter(objectPath);
                 
                 for( ; iter != end ; ++iter )
                 {
-                    if ( !is_directory( *iter ) && iter->path().extension().string().compare(".pcd") == 0)
+                    if ( !boost::filesystem::is_directory( *iter ) && iter->path().extension().string().compare(".pcd") == 0)
                     {
                         stringstream ss;
                         

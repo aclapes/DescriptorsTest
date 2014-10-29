@@ -457,11 +457,11 @@ protected:
 
     float chisquareDistanceSignatures(SignatureT& s1, SignatureT& s2)
 	{
-		float accS1 = 0.f;
-		float accS2 = 0.f;
+		float accS1, accS2;
+        accS1 = accS2 = 0.f;
         
         int B = sizeof(s1.histogram) / sizeof(s1.histogram[0]);
-		for (int b = 0; b < B;  b++)
+		for (int b = 0; b < B; b++)
 		{
 			accS1 += s1.histogram[b];
 			accS2 += s2.histogram[b];
@@ -470,15 +470,15 @@ protected:
         float acc = 0.f;
         for (int b = 0; b < B; b++)
         {
-            float val1 = s1.histogram[b]/accS1;
-            float val2 = s2.histogram[b]/accS2;
+            float val1 = (accS1 > 0) ? (s1.histogram[b] / accS1) : 0;
+            float val2 = (accS2 > 0) ? (s2.histogram[b] / accS2) : 0;
             
-            float m = (val1 + val2) / 2.f;
-            if (m != 0)
-                acc += powf(val1 - m, 2) / m;
+            float m = (val1 + val2);
+            if (m > 0)
+                acc += (powf(val1 - val2, 2) / m);
         }
         
-		return acc;
+		return 0.5f * acc;
 	}
 
 	// Returns the euclidean distance between two fpfh signatures, which are actually histograms

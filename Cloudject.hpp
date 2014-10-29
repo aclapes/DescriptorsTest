@@ -468,10 +468,10 @@ template<>
 class LFCloudject<pcl::PointXYZRGB, pcl::PFHRGBSignature250> : public LFCloudjectBase<pcl::PointXYZRGB, pcl::PFHRGBSignature250>
 {
     typedef pcl::PointXYZRGB PointT;
-    typedef pcl::PointCloud<PointT> PointCloud;
-	typedef typename pcl::PointCloud<PointT>::Ptr PointCloudPtr;
-    typedef pcl::search::KdTree<PointT> KdTree;
-	typedef typename pcl::search::KdTree<PointT>::Ptr KdTreePtr;
+    typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
+	typedef pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPtr;
+    typedef pcl::search::KdTree<pcl::PointXYZRGB> KdTree;
+	typedef pcl::search::KdTree<pcl::PointXYZRGB>::Ptr KdTreePtr;
 
 public:
 	LFCloudject(float leafSize = 0.f)
@@ -524,7 +524,7 @@ public:
 		//
 
 		// Create the normal estimation class, and pass the input dataset to it
-		typename pcl::NormalEstimation<PointT, pcl::Normal> ne;
+		pcl::NormalEstimation<PointT, pcl::Normal> ne;
 		ne.setInputCloud (pView);
 
 		// Create an empty kdtree representation, and pass it to the normal estimation object.

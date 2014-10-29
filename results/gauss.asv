@@ -1,6 +1,0 @@
-sigma = 3;
-x = linspace(-9, 9, 100);
- 
-a = 0.5 .* power((x ./ sigma), 2);  
-
-g = (1/(sigma)*sqrt(2*pi))exp(a)

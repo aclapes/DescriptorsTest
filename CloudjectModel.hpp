@@ -295,7 +295,8 @@ public:
     { m_ViewsDescriptions.push_back(pDescription); }
     DescriptionPtr getViewDescription(int i) { return m_ViewsDescriptions[i]; }
 
-    void getMinimumDistances(typename LFCloudject<PointT,SignatureT>::Ptr pCloudject,  vector<vector<float> >& distances)
+    // Test against this model. Returns distances (in each view) from points to matched model points (wo/ re-match)
+    void getMinimumDistances(typename LFCloudject<PointT,SignatureT>::Ptr pCloudject, vector<vector<float> >& distances)
     {
         distances.resize(pCloudject->getNumOfViews());
         for (int v = 0; v < pCloudject->getNumOfViews(); v++)
@@ -304,6 +305,39 @@ public:
             getMinimumDistancesToDescription(pCloudject->getDescription(v), viewDistances);
             
             distances[v] = viewDistances;
+        }
+    }
+    
+    static float distToScore(float dist)
+    {
+        return 1 - dist;
+    }
+    
+    void getScores(typename LFCloudject<PointT,SignatureT>::Ptr pCloudject, vector<float>& scores)
+    {
+        scores.clear();
+        
+        vector<vector<float> > distances; // #{views} x #{cloudject points}
+        getMinimumDistances(pCloudject, distances);
+        
+        // From distances to averaged scores
+        scores.resize(distances.size());
+        for (int v = 0; v < distances.size(); v++)
+        {
+            float scoreAcc = 0.f;
+            int inliers = 0;
+            
+            for (int k = 0; k < distances[v].size(); k++)
+            {
+                float score = distToScore(distances[v][k]);
+                if (score > m_PointRejectionThresh)
+                {
+                    scoreAcc += score;
+                    inliers ++;
+                }
+            }
+            
+            scores[v] = ((inliers > 0) ? (scoreAcc / inliers) : 0.f); // do not count on rejections
         }
     }
     
@@ -359,121 +393,47 @@ protected:
     void getMinimumDistancesToDescription(DescriptionPtr pDescription, vector<float>& distances)
     {
         // Structure to not re-match against a model point
-        vector<vector<bool> > matches;
-        matches.resize(m_ViewsDescriptions.size());
-		for (int i = 0; i < matches.size(); i++)
-			matches[i].resize(m_ViewsDescriptions[i]->points.size(), false);
+        vector<vector<bool> > matches (m_ViewsDescriptions.size());
+		for (int v = 0; v < m_ViewsDescriptions.size(); v++)
+			matches[v].resize(m_ViewsDescriptions[v]->points.size(), false);
         
         // Count the positive matches to each model
-        vector<int> numOfMatches;
-        numOfMatches.resize(m_ViewsDescriptions.size());
+        vector<int> numOfMatches (m_ViewsDescriptions.size(), 0);
         
-        distances.resize(pDescription->size(), std::numeric_limits<float>::max());
-        
-        for (int i = 0; i < pDescription->size(); i++)
+        distances.resize(pDescription->size());
+        for (int i = 0; i < pDescription->size(); i++) // test view
 		{
-            float minVal = std::numeric_limits<float>::max();
-            int minViewIdx;
-            int minPointIdx;
+            float minDistVal = std::numeric_limits<float>::max();
+            int minDistViewIdx;
+            int minDistPointIdx;
             
-            for (int v = 0; v < m_ViewsDescriptions.size(); v++)
+            for (int v = 0; v < m_ViewsDescriptions.size(); v++) // views of the model
 			{
-                DescriptionPtr pViewDescription = m_ViewsDescriptions[v];
-                
-                // No points left to be matched in the view, no need to check
-                if (numOfMatches[v] < pViewDescription->size())
+                // No points left to be matched in this model view, no need to go further with it
+                if (numOfMatches[v] < m_ViewsDescriptions[v]->size())
                 {
-                    for (int j = 0; j < pViewDescription->size(); j++)
+                    for (int j = 0; j < m_ViewsDescriptions[v]->size(); j++)
                     {
-//                        float dist = euclideanDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
-//                        float dist = chisquareDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
-                        float dist = battacharyyaDistanceSignatures( pDescription->points[i], pViewDescription->points[j]);
+//                        float dist = euclideanDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
+                        float dist = chisquareDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
+//                        float dist = battacharyyaDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
                         
-                        if (dist < minVal)
+                        if (dist < minDistVal)
                         {
-                            minVal = dist;
-                            minViewIdx  = v;
-                            minPointIdx = j;
+                            minDistViewIdx  = v;
+                            minDistPointIdx = j;
+                            minDistVal = dist;
                         }
                     }
                 }
             }
             
-            distances[i] = minVal;
-            matches[minViewIdx][minPointIdx];
-            numOfMatches[minViewIdx]++;
+            distances[i] = minDistVal;
+            matches[minDistViewIdx][minDistPointIdx] = true;
+            numOfMatches[minDistViewIdx] ++;
         }
     }
     
-	float matchView(DescriptionPtr Description)
-	{
-		// Auxiliary structures: to not match against a model point more than once
-
-		vector<int> numOfMatches;
-		numOfMatches.resize(m_ViewsDescriptions.size(), 0);
-
-		vector<vector<bool> > matches;
-
-		matches.resize(m_ViewsDescriptions.size());
-		for (int i = 0; i < matches.size(); i++)
-			matches[i].resize(m_ViewsDescriptions[i]->points.size(), false);
-
-		// Match
-
-		float accDistToSig = 0;
-
-		int minIdxV = -1, minIdxP = -1;
-		int numOfTotalMatches = 0;
-
-		for (int p = 0; p < Description->points.size(); p++)
-		{
-            float minDistToP = 1; // min distance to other point histogram
-            float ndMinDist = 1; // 2nd min distance
-            float dist;
-		
-			for (int i = 0; i < m_ViewsDescriptions.size() && (numOfMatches[i] < m_ViewsDescriptions[i]->points.size()); i++)
-			{
-				for (int j = 0; j < m_ViewsDescriptions[i]->points.size(); j++)
-				{
-					if ( (!(matches[i][j])) ) // A point in a vie)w can only be matched one time against
-					{
-						float dist = battacharyyaDistanceSignatures( Description->points[p], m_ViewsDescriptions[i]->points[j]);
-                        
-						if (dist < minDistToP) // not matched yet and minimum
-						{
-							minDistToP = dist;
-							minIdxV = i;
-							minIdxP = j;
-						}
-						else if (dist < ndMinDist)
-						{
-							ndMinDist = dist;
-						}
-					}
-				}
-			}
-            
-			if (minDistToP <= m_PointRejectionThresh/* && (minDistToP/ndMinDist) < m_RatioRejectionThresh*/)
-			{
-				accDistToSig += minDistToP;
-				numOfMatches[minIdxV] ++; // aux var: easy way to know when all the points in a model have been matched
-				matches[minIdxV][minIdxP] = true; // aux var: to know when a certain point in a certian model have already matched
-                
-                numOfTotalMatches++;
-
-			}
-		}
-
-		// Normalization: to deal with partial occlusions
-		//float factor = (Description->points.size() / (float) averageNumOfPointsInModels());
-		
-		float avgDist = (numOfTotalMatches > 0) ? (accDistToSig / numOfTotalMatches) : 1;
-		float score =  1.f - avgDist;
-
-		return score; // / Description->points.size());
-	}
-
-
 	// Returns the battacharyya distance between two fpfh signatures, which are actually histograms.
 	// This is a normalized [0,1] distance
 	float battacharyyaDistanceSignatures(SignatureT& s1, SignatureT& s2)
@@ -728,10 +688,10 @@ class LFCloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250> : public LFClo
     typedef pcl::PointXYZRGB PointT;
 	typedef pcl::PointCloud<pcl::PFHRGBSignature250> Description;
 	typedef pcl::PointCloud<pcl::PFHRGBSignature250>::Ptr DescriptionPtr;
-	typedef pcl::PointCloud<PointT> PointCloud;
-	typedef typename pcl::PointCloud<PointT>::Ptr PointCloudPtr;
-    typedef pcl::search::KdTree<PointT> KdTree;
-    typedef typename pcl::search::KdTree<PointT>::Ptr KdTreePtr;
+	typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
+	typedef pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPtr;
+    typedef pcl::search::KdTree<pcl::PointXYZRGB> KdTree;
+    typedef pcl::search::KdTree<pcl::PointXYZRGB>::Ptr KdTreePtr;
     
 	typedef LFCloudject<PointT,pcl::PFHRGBSignature250> LFCloudject;
     

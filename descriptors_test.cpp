@@ -44,8 +44,9 @@ using namespace std;
 #define SUMMARY_FILEPATH          "summary.txt"
 #define SCORES_FILEPATH           "scores.txt"
 
-#define FPFH_DESCRIPTION
+
 enum {FPFH, PFHRGB};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,20 +62,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<typename SignatureT>
 class DescriptorTester
 {
-#ifdef FPFH_DESCRIPTION
-	typedef LFCloudject<pcl::PointXYZRGB, pcl::FPFHSignature33> Cloudject;
-	typedef LFCloudject<pcl::PointXYZRGB, pcl::FPFHSignature33>::Ptr CloudjectPtr;
-	typedef LFCloudjectModel<pcl::PointXYZRGB, pcl::FPFHSignature33> CloudjectModel;
-	typedef LFCloudjectModel<pcl::PointXYZRGB, pcl::FPFHSignature33>::Ptr CloudjectModelPtr;
-#else
-	typedef LFCloudject<pcl::PointXYZRGB, pcl::PFHRGBSignature250> Cloudject;
-	typedef LFCloudject<pcl::PointXYZRGB, pcl::PFHRGBSignature250>::Ptr CloudjectPtr;
-	typedef LFCloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250> CloudjectModel;
-	typedef LFCloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250>::Ptr CloudjectModelPtr;
-#endif
 
+	typedef LFCloudject<pcl::PointXYZRGB, SignatureT> Cloudject;
+	typedef typename LFCloudject<pcl::PointXYZRGB, SignatureT>::Ptr CloudjectPtr;
+	typedef LFCloudjectModel<pcl::PointXYZRGB, SignatureT> CloudjectModel;
+	typedef typename LFCloudjectModel<pcl::PointXYZRGB, SignatureT>::Ptr CloudjectModelPtr;
+    
 public:
     
     DescriptorTester(vector<string> modelsNames, vector<int> modelsNumOfViews, int gheight, int gwidth)
@@ -95,11 +91,6 @@ public:
         m_TestPath = std::string(path);
     }
     
-    void setDescriptorType(int type)
-    {
-        m_DescriptorType = type;
-    }
-    
     void setOutputFilePaths(const char* ofSummariesPath, const char* ofScoresPath)
     {
         m_OfSummariesPath = std::string(ofSummariesPath);
@@ -113,12 +104,10 @@ public:
         // Load the point clouds (cloudjects' views)
         
 		cout << "Loading training ... " << endl;
-        string trainPath = string(PARENT_DIR) + "data/Models/";
-		loadObjectViews(trainPath.c_str(), "PCDs/", m_ModelsNames, trViews);
+		loadObjectViews(m_ModelsPath.c_str(), "PCDs/", m_ModelsNames, trViews);
 
 		cout << "Loading testing ... " << endl;
-        string testPath = string(PARENT_DIR) + "data/Test/";
-		loadObjectViews(testPath.c_str(), "PCDs/", m_ModelsNames, teViews);
+		loadObjectViews(m_TestPath.c_str(), "PCDs/", m_ModelsNames, teViews);
 
         // Construct the cloudjects
         
@@ -818,35 +807,12 @@ private:
     std::vector<int> m_ModelsNumOfViews;
     int m_GridHeight;
     int m_GridWidth;
-    int m_DescriptorType;
     
     std::string m_OfSummariesPath, m_OfScoresPath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//void getColumnMeans(std::vector<std::vector<float> > data, std::vector<float>& means)
-//{
-//    means.resize(data[0].size());
-//    for (int j = 0; j < data[0].size(); j++)
-//        means[j] = xtl::mean(xtl::getCol(data, j));
-//}
-//
-//void getColumnStddevs(std::vector<std::vector<float> > data, std::vector<float>& stddevs)
-//{
-//    stddevs.resize(data[0].size());
-//    for (int j = 0; j < data[0].size(); j++)
-//        stddevs[j] = xtl::stddev(xtl::getCol(data, j));
-//}
-//
-//void standardize(std::vector<std::vector<float> > data, std::vector<float> means, std::vector<float> stddevs, std::vector<std::vector<float> >& stdData)
-//{
-//    stdData.resize(data.size(), std::vector<float>(data[0].size()));
-//    
-//    for (int i = 0; i < data.size(); i++)
-//        for (int j = 0; j < data[i].size(); j++)
-//            stdData[i][j] = (data[i][j] - means[j]) / (stddevs[j] > 0 ? stddevs[j] : 1);
-//}
 
 void splitString(std::string str, std::string separator, std::vector<int>& args)
 {
@@ -886,7 +852,9 @@ int main(int argc, char** argv)
     // The system need to be parametrized
     //
     
-    // ./descriptors_test -m "book,cup,dish,grimper,scissors,pillbox,tetrabrick" -v "3,1,3,2,2,5,3" -g 7,3
+    // ./descriptors_test -m "book,cup,dish,grimper,scissors,pillbox,tetrabrick" -v "3,1,3,2,2,5,3" -g 7,3 -d 0
+    //
+    //      -d: option is 0 for FPFH and 1 for PFHRGB
     
     //
     // Optional arguments came later:
@@ -918,9 +886,16 @@ int main(int argc, char** argv)
     int gheight, gwidth;
     pcl::console::parse_2x_arguments(argc, argv, "-g", gheight, gwidth);
     
+    int descriptionType;
+    pcl::console::parse(argc, argv, "-d", descriptionType);
+    
+    void* pDt;
     ////////////////////////////////////////////////////////////////////////
     // Initialization
-    DescriptorTester dt (modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
+    if (descriptionType == FPFH)
+        pDt = (void*) new DescriptorTester<pcl::FPFHSignature33>(modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
+    else if (descriptionType == PFHRGB)
+        pDt = (void*) new DescriptorTester<pcl::PFHRGBSignature250>(modelsNamesLStr, modelsNumOfViews, gheight, gwidth);
     ////////////////////////////////////////////////////////////////////////
     
     // Parse 'output file'-related arguments
@@ -945,9 +920,19 @@ int main(int argc, char** argv)
     ////////////////////////////////////////////////////////////////////////
     // Set parameters to the system
     if (bFilenamesParsed)
-        dt.setOutputFilePaths(ofSummariesPath.c_str(), ofScoresPath.c_str());
+    {
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->setOutputFilePaths(ofSummariesPath.c_str(), ofScoresPath.c_str());
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->setOutputFilePaths(ofSummariesPath.c_str(), ofScoresPath.c_str());
+    }
     else
-        dt.setOutputFilePaths(SUMMARY_FILEPATH, SCORES_FILEPATH);
+    {
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->setOutputFilePaths(SUMMARY_FILEPATH, SCORES_FILEPATH);
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->setOutputFilePaths(SUMMARY_FILEPATH, SCORES_FILEPATH);
+    }
     ////////////////////////////////////////////////////////////////////////
 
     // Parse data and score computation-related parameters
@@ -962,14 +947,11 @@ int main(int argc, char** argv)
         std::string testPathStr;
         pcl::console::parse_argument(argc, argv, "-e", testPathStr);
         
-        int descriptorType;
-        pcl::console::parse_argument(argc, argv, "-d", descriptorType);
-        
         // Parsing (descriptor dependent)
         
         std::vector<std::vector<float> > params;
         
-        if (descriptorType == FPFH || descriptorType == PFHRGB)
+        if (descriptionType == FPFH || descriptionType == PFHRGB)
         {
             std::string leafSizesStr;
             pcl::console::parse_argument(argc, argv, "-l", leafSizesStr);
@@ -1001,14 +983,24 @@ int main(int argc, char** argv)
         
         ////////////////////////////////////////////////////////////////////////
         // More settings
-        dt.setDescriptorType(descriptorType);
-        dt.setModelsDataPath(modelsPathStr.c_str());
-        dt.setTestDataPath(testPathStr.c_str());
+        if (descriptionType == FPFH)
+        {
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->setModelsDataPath(modelsPathStr.c_str());
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->setTestDataPath(testPathStr.c_str());
+        }
+        else if (descriptionType == PFHRGB)
+        {
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->setModelsDataPath(modelsPathStr.c_str());
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->setTestDataPath(testPathStr.c_str());
+        }
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////////////////////////////////////////////////////
         // Computations of scores
-        dt.computeScores(params);
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->computeScores(params);
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->computeScores(params);
         ////////////////////////////////////////////////////////////////////////
 
     }
@@ -1028,7 +1020,11 @@ int main(int argc, char** argv)
         }
         
         // Run the validation
-        dt.validateWithoutRejection(dontcareIndices);
+        
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->validateWithoutRejection(dontcareIndices);
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->validateWithoutRejection(dontcareIndices);
     }
     
     // Validate with rejection
@@ -1052,8 +1048,16 @@ int main(int argc, char** argv)
         }
         
         // Run the validation
-        dt.validateWithRejection(objRejThreshs, dontcareIndices);
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->validateWithRejection(objRejThreshs, dontcareIndices);
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->validateWithRejection(objRejThreshs, dontcareIndices);
     }
     
+    if (descriptionType == FPFH)
+        delete ((DescriptorTester<pcl::FPFHSignature33>*) pDt);
+    else if (descriptionType == PFHRGB)
+        delete ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt);
+        
 	return 0;
 }

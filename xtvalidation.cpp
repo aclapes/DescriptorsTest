@@ -122,8 +122,13 @@ xtl::CvPartition::CvPartition(int n, int k, int seed)
     for (int i = 0; i < m_Partitions.size(); i++)
         m_Partitions[i] = i % k;
 
+#ifdef __APPLE__
+    std::default_random_engine g(seed);
+     std::shuffle(m_Partitions.begin(), m_Partitions.end(), g);
+#elif _WIN32 || _WIN64
     std::srand(seed);
 	std::random_shuffle(m_Partitions.begin(), m_Partitions.end(), RNG());
+#endif
 }
 
 xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
@@ -153,7 +158,11 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
     
     m_Partitions.resize(groups.size());
     
+#ifdef __APPLE__
+    std::default_random_engine g(seed);
+#elif _WIN32 || _WIN64
     std::srand(seed);
+#endif
     
     for (int i = 0; i < labels.size(); i++)
     {
@@ -161,7 +170,11 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
         for (int j = 0; j < indices[i].size(); j++)
             v[j] = j % k;
         
-		std::random_shuffle(v.begin(), v.end(), RNG());
+#ifdef __APPLE__
+        std::shuffle(v.begin(), v.end(), g);
+#elif _WIN32 || _WIN64
+        std::random_shuffle(v.begin(), v.end(), RNG());
+#endif
         
         for (int j = 0; j < indices[i].size(); j++)
             m_Partitions[indices[i][j]] = v[j];
@@ -267,8 +280,13 @@ xtl::LoocvPartition::LoocvPartition(int n, int seed)
     for (int i = 0; i < m_Partitions.size(); i++)
         m_Partitions[i] = i;
     
-	std::srand(seed);
-    std::random_shuffle(m_Partitions.begin(), m_Partitions.end(), RNG());
+#ifdef __APPLE__
+    std::default_random_engine g(seed);
+    std::shuffle(m_Partitions.begin(), m_Partitions.end(), g);
+#elif _WIN32 || _WIN64
+    std::srand(seed);
+	std::random_shuffle(m_Partitions.begin(), m_Partitions.end(), RNG());
+#endif
 }
 
 xtl::LoocvPartition::LoocvPartition(const LoocvPartition& rhs)

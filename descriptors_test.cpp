@@ -6,6 +6,7 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/console/parse.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/timer.hpp>
@@ -559,7 +560,12 @@ private:
         
         models.resize(names.size());
 		for (int i = 0; i < names.size(); i++)
+        {
             models[i] = CloudjectModelPtr(new CloudjectModel(i, names[i], views[i]));
+//            pcl::visualization::PCLVisualizer pViz ("creation");
+//            pViz.addPointCloud(models[i]->getView(0), "cloud");
+//            pViz.spin();
+        }
 	}
     
 	void createCloudjects(vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> views, vector<CloudjectPtr>& cjs)
@@ -572,7 +578,12 @@ private:
     void downsampleCloudjectModels(vector<CloudjectModelPtr> models, float leafSize)
     {
         for (int i = 0; i < models.size(); i++)
+        {
 			models[i]->downsample(leafSize);
+//            pcl::visualization::PCLVisualizer pViz ("downsample");
+//            pViz.addPointCloud(models[i]->getView(0), "cloud");
+//            pViz.spin();
+        }
     }
     
     void downsampleCloudjects(vector<CloudjectPtr> cloudjects, float leafSize)
@@ -859,10 +870,10 @@ int main(int argc, char** argv)
     // Specify the output paths
     //   -O "summary.txt,scores.txt"
     // Specify the arguments for the computation of scores
-    //   -S -t "../../data/Models/" -e "../../data/Test/" -d 0 -l "0.01,0.02,0.03" -n "0.03,0.05,0.07" -f "0.05,0.075,0.10,0.125,0.15,0.20" -p 0,1,0.1
+    //   -S -t "../../data/Models/" -e "../../data/Test/" -d 0 -l "0.01,0.02,0.03" -n "0.03,0.05,0.07" -f "0.05,0.075,0.10,0.125,0.15,0.20" -p 0,1,0.025
     // Choose the validation
     // -V (-i "3,4")
-    // -Vr "0,0.025,1" -i "3,4", validation with rejection
+    // -Vr "0,1,0.01" -i "3,4", validation with rejection
     
     
     int pos;
@@ -1029,9 +1040,10 @@ int main(int argc, char** argv)
     {
         // Parse rejection thresholds
         float objRjThreshStart, objRjThreshStep, objRjThreshEnd;
-        pcl::console::parse_3x_arguments(argc, argv, "-Vr", objRjThreshStart, objRjThreshStep, objRjThreshEnd);
+        pcl::console::parse_3x_arguments(argc, argv, "-Vr", objRjThreshStart, objRjThreshEnd, objRjThreshStep);
         
-        vector<float> objRejThreshs = xtl::linspace(objRjThreshStart, objRjThreshEnd, objRjThreshStep, false);
+        vector<float> objRejThreshs = xtl::linspace(objRjThreshStart, objRjThreshEnd, objRjThreshStep, true);
+        objRejThreshs.pop_back();
         
         // Parse dontcares (optional)
         vector<int> dontcareIndices;

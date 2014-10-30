@@ -6,6 +6,7 @@ data/
 Data/
 results/
 xbuild/
+xbuild.battacharyya/
 
 # User-specific files
 *.suo
@@ -155,3 +156,6 @@ $RECYCLE.BIN/
 
 # Mac crap
 .DS_Store
+
+#CMake
+CMakeLists.txt

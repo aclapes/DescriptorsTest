@@ -392,7 +392,7 @@ public:
 protected:
 	// Returns the score of matching a description of a certain cloudject's view against the model views' descriptions
     
-    void getMinimumDistancesToDescription(DescriptionPtr pDescription, vector<float>& distances)
+    void getMinimumNonOverlapingDistancesToDescription(DescriptionPtr pDescription, vector<float>& distances)
     {
         distances.clear();
         
@@ -440,6 +440,33 @@ protected:
 				matches[minDistViewIdx][minDistPointIdx] = true;
 				numOfMatches[minDistViewIdx] ++;
 			}
+        }
+    }
+    
+    void getMinimumDistancesToDescription(DescriptionPtr pDescription, vector<float>& distances)
+    {
+        distances.clear();
+        
+        distances.resize(pDescription->size());
+        for (int i = 0; i < pDescription->size(); i++) // test view
+		{
+            float minDistVal = std::numeric_limits<float>::max();
+
+            for (int v = 0; v < m_ViewsDescriptions.size(); v++) // views of the model
+			{
+                for (int j = 0; j < m_ViewsDescriptions[v]->size(); j++)
+                {
+//                        float dist = euclideanDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
+                    float dist = chisquareDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
+//                        float dist = battacharyyaDistanceSignatures( pDescription->points[i], m_ViewsDescriptions[v]->points[j]);
+                    if (dist < minDistVal)
+                    {
+                        minDistVal = dist;
+                    }
+                }
+            }
+            
+            distances[i] = minDistVal;
         }
     }
     

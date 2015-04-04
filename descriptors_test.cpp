@@ -159,7 +159,7 @@ public:
                 t.restart();
                 // (t)
                 vector<vector<vector<vector<float> > > > distances;
-                if ( vNormalsRadius[j] > vLeafSizes[i] && vPfhRadius[k] > vLeafSizes[i] && vPfhRadius[k] > vNormalsRadius[j])
+                if ( vNormalsRadius[j] >= vLeafSizes[i] && vPfhRadius[k] >= vLeafSizes[i])
                 {
                     getCloudjectsDistancesToModels(models, cloudjects, distances);
                 }
@@ -180,7 +180,7 @@ public:
                     vector<vector<float> > scores;
                     
                     // No sense to have worse models than tests, or to have bigger radius (normals or fpfh) than the voxels' leaf size.
-                    if ( vNormalsRadius[j] > vLeafSizes[i] && vPfhRadius[k] > vLeafSizes[i] && vPfhRadius[k] > vNormalsRadius[j])
+                    if ( vNormalsRadius[j] >= vLeafSizes[i] && vPfhRadius[k] >= vLeafSizes[i])
                     {
                         t.restart();
                         // (t)
@@ -371,7 +371,159 @@ public:
         for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
         {
             cout << p << " ";
-
+            
+            vector<int> groundtruthTr, groundtruthTe;
+            cvpst.getTrainTest(groundtruth, p, groundtruthTr, groundtruthTe);
+            
+            xtl::CvPartition icvpst (groundtruthTr, NUM_OF_PARTITIONS_VAL, SEED);
+            boost::timer t;
+            vector<vector<float> > paramsInternalsAccs (icvpst.getNumOfPartitions());
+            for (int pp = 0; pp < icvpst.getNumOfPartitions(); pp++)
+            {
+                //            cout << p << " : " << pp << endl;
+                vector<int> groundtruthTrTr, groundtruthTrVal;
+                icvpst.getTrainTest(groundtruthTr, pp, groundtruthTrTr, groundtruthTrVal);
+                
+                paramsInternalsAccs[pp].resize(summaries.size(), 0);
+                for (int i = 0; i < summaries.size(); i++)
+                {
+                    if (scores[i].empty()) continue;
+                    
+                    // Train
+                    vector<vector<float> > scoresTr;
+                    cvpst.getTrain(scores[i], p, scoresTr);
+                    
+                    vector<vector<float> > scoresTrTr, scoresTrVal;
+                    icvpst.getTrainTest(scoresTr, pp, scoresTrTr, scoresTrVal);
+                    
+                    vector<float> rjtThreshsBest, rjtAccuraciesBest;
+                    trainRejectionThreshold(scoresTrTr, groundtruthTrTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
+                    
+                    vector<int> predictionsTrVal;
+                    vector<bool> _dcs (rjtThreshsBest.size());
+                    classify(scoresTrVal, rjtThreshsBest, _dcs, predictionsTrVal);
+                    paramsInternalsAccs[pp][i] = xtl::computeAccuracy(groundtruthTrVal, predictionsTrVal);
+                }
+            }
+            
+            xtl::collapse(paramsInternalsAccs, 0, paramsAccs[p], xtl::COLLAPSE_AVG);
+            
+            int idxValBest;
+            float accValBest = 0.f;
+            for (int i = 0; i < summaries.size(); i++)
+            {
+                float accAcc = 0.f;
+                for (int pp = 0; pp < icvpst.getNumOfPartitions(); pp++)
+                    accAcc += paramsInternalsAccs[pp][i];
+                float acc = accAcc / icvpst.getNumOfPartitions();
+                
+                if (acc > accValBest)
+                {
+                    idxValBest = i;
+                    accValBest = acc;
+                }
+            }
+            
+            cout << accValBest << endl;
+            
+            vector<vector<float> > scoresTr, scoresTe;
+            cvpst.getTrainTest(scores[idxValBest], p, scoresTr, scoresTe);
+            
+            vector<float> rjtThreshsBest;
+            vector<float> rjtAccuraciesBest;
+            trainRejectionThreshold(scoresTr, groundtruthTr, objRejThreshs, rjtThreshsBest, rjtAccuraciesBest);
+            
+            // Replace dontcare class labels by -1 to match the rejectin prediciton (-1)
+            vector<int> aux;
+            vector<int> indices;
+            xtl::filterByValue(groundtruthTe, dontcareIndices, aux, indices);
+            aux = groundtruthTe;
+            for (int i = 0; i < indices.size(); i++)
+                aux[indices[i]] = -1;
+            
+            vector<int> predictionsTe;
+            classify(scoresTe, rjtThreshsBest, dcs, predictionsTe);
+            
+            oosGroundtruth.insert(oosGroundtruth.end(), aux.begin(), aux.end());
+            oosPredictions.insert(oosPredictions.end(), predictionsTe.begin(), predictionsTe.end());
+        } std::cout << std::endl;;
+        
+        // Print groundtruth
+        std::cout << "Groundtruth (labels)" << endl;
+        std::copy(oosGroundtruth.begin(), oosGroundtruth.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;;
+        
+        // Print out-of-sample predictions
+        std::cout << "Predictions (labels)" << endl;
+        std::copy(oosPredictions.begin(), oosPredictions.end(), std::ostream_iterator<int>(std::cout, " "));
+        std::cout << std::endl;;
+        
+        // Print confusion matrix
+        std::cout << "Confusion matrix" << endl;
+        std::vector<std::vector<float> > cnfMat;
+        xtl::computeConfusion(oosGroundtruth, oosPredictions, cnfMat, true); // normalized
+        xtl::print(cnfMat);
+        
+        // Get the out of sample accuracy of the outer cv
+        float accMean = xtl::computeAccuracy(oosGroundtruth, oosPredictions);
+        cout << "Out-of-sample accuracy [0,1]: " << accMean << endl;
+        cout << endl;
+        
+        vector<float> paramsAccsAvg;
+        xtl::collapse(paramsAccs, 0, paramsAccsAvg, xtl::COLLAPSE_AVG);
+        
+        // Show combinations' performance print
+        cout << "Combinations performance: " << endl;
+        xtl::print(paramsAccsAvg);
+        cout << endl;
+        
+        // Index of best combination performance in average
+        std::pair<int,float> paramsMaxAcc = xtl::max(paramsAccsAvg);
+        
+        cout << "Best combination perfomance (#" << paramsMaxAcc.first << "): ";
+        xtl::print(summaries[paramsMaxAcc.first]);
+        
+        cout << "Rejection thresholds combination in best performance (#" << paramsMaxAcc.first << "): ";
+        std::vector<float> objRejThreshsBest, objRejAccsBest;
+        trainRejectionThreshold(scores[paramsMaxAcc.first], groundtruth, objRejThreshs, objRejThreshsBest, objRejAccsBest);
+        xtl::print(objRejThreshsBest);
+        xtl::print(objRejAccsBest);
+    }
+    
+    void getRejection(std::vector<float> objRejThreshs, std::vector<int> dontcareIndices, int idx)
+    {
+        std::vector<std::vector<float> > _summaries, summaries;
+        loadSummariesFromFile(m_OfSummariesPath, _summaries, true);
+        
+        std::vector<std::vector<std::vector<float> > > _scores, scores;
+        loadScoresFromFile(m_OfScoresPath, _scores);
+        
+        summaries.push_back(_summaries[idx]);
+        scores.push_back(_scores[idx]);
+        
+        std::vector<int> groundtruth;
+        for (int m = 0; m < m_ModelsNumOfViews.size(); m++)
+        {
+            std::vector<int> objInstanceIdx (m_ModelsNumOfViews[m] * m_GridHeight * m_GridWidth, m);
+            groundtruth.reserve(groundtruth.size() + objInstanceIdx.size());
+            groundtruth.insert(groundtruth.end(), objInstanceIdx.begin(), objInstanceIdx.end());
+        }
+        
+        std::vector<float> rjtThreshsBest (m_ModelsNames.size(), 0);
+        std::vector<bool> dcs = xtl::indicesToLogicals(m_ModelsNames.size(), dontcareIndices);
+        
+        xtl::LoocvPartition cvpst (groundtruth.size(), SEED);
+        
+        // Out-of-sample accuracy
+        vector<int> oosPredictions, oosGroundtruth;
+        oosPredictions.reserve(cvpst.getNumOfPartitions());
+        oosGroundtruth.reserve(cvpst.getNumOfPartitions());
+        
+        vector<vector<float> > paramsAccs (cvpst.getNumOfPartitions());
+        for (int p = 0; p < cvpst.getNumOfPartitions(); p++)
+        {
+            cout << p << " ";
+            
             vector<int> groundtruthTr, groundtruthTe;
             cvpst.getTrainTest(groundtruth, p, groundtruthTr, groundtruthTe);
             
@@ -1060,6 +1212,35 @@ int main(int argc, char** argv)
             ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->validateWithRejection(objRejThreshs, dontcareIndices);
         else if (descriptionType == PFHRGB)
             ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->validateWithRejection(objRejThreshs, dontcareIndices);
+    }
+    
+    if ( (pos = pcl::console::find_argument(argc, argv, "-r")) >= 0 )
+    {
+        // Parse rejection thresholds
+        float objRjThreshStart, objRjThreshStep, objRjThreshEnd;
+        pcl::console::parse_3x_arguments(argc, argv, "-r", objRjThreshStart, objRjThreshEnd, objRjThreshStep);
+        
+        vector<float> objRejThreshs = xtl::linspace(objRjThreshStart, objRjThreshEnd, objRjThreshStep, true);
+        objRejThreshs.pop_back();
+        
+        // Parse dontcares (optional)
+        vector<int> dontcareIndices;
+        if ( (pos = pcl::console::find_argument(argc, argv, "-i")) >= 0 )
+        {
+            std::string dontcareIndicesStr;
+            pcl::console::parse_argument(argc, argv, "-i", dontcareIndicesStr);
+            
+            splitString(dontcareIndicesStr, ",", dontcareIndices);
+        }
+        
+        int cindex;
+        pcl::console::parse_argument(argc, argv, "-c", cindex);
+        
+        // Run the validation
+        if (descriptionType == FPFH)
+            ((DescriptorTester<pcl::FPFHSignature33>*) pDt)->getRejection(objRejThreshs, dontcareIndices, cindex);
+        else if (descriptionType == PFHRGB)
+            ((DescriptorTester<pcl::PFHRGBSignature250>*) pDt)->getRejection(objRejThreshs, dontcareIndices, cindex);
     }
     
     if (descriptionType == FPFH)

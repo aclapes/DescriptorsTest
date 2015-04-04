@@ -10,7 +10,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/timer.hpp>
-#include <boost/assign/std/vector.hpp>
+//#include <boost/assign/std/vector.hpp>
 
 #include "Cloudject.hpp"
 #include "CloudjectModel.hpp"
@@ -27,7 +27,7 @@
 #include <boost/lexical_cast.hpp>
 
 //using namespace boost::filesystem;
-using namespace boost::assign;
+//using namespace boost::assign;
 using namespace std;
 
 #ifdef __APPLE__
@@ -202,10 +202,10 @@ public:
 
                     // Save to file
 
-                    std::vector<float> parameters;
-                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], descriptionTime, distancesComputationTime, categorizationTime;
-                    copy(parameters.begin(), parameters.end(), ostream_iterator<float>(summariesFile, " "));
-                    summariesFile << endl;
+//                    std::vector<float> parameters;
+//                    parameters += vLeafSizes[i], vNormalsRadius[j], vPfhRadius[k], vPointRejectionThresh[p], descriptionTime, distancesComputationTime, categorizationTime;
+//                    copy(parameters.begin(), parameters.end(), ostream_iterator<float>(summariesFile, " "));
+//                    summariesFile << endl;
                     
                     for (int c = 0; c < scores.size(); c++)
                     {
@@ -1110,7 +1110,7 @@ int main(int argc, char** argv)
         
         // Parsing (descriptor dependent)
         
-        std::vector<std::vector<float> > params;
+        std::vector<std::vector<float> > params (4);
         
         if (descriptionType == FPFH || descriptionType == PFHRGB)
         {
@@ -1129,17 +1129,17 @@ int main(int argc, char** argv)
             pcl::console::parse_3x_arguments(argc, argv, "-p", ptRjThreshStart, ptRjThreshEnd, ptRjThreshStep);
             
             std::vector<float> leafSizes;
-            splitString(leafSizesStr, ",", leafSizes);
+            splitString(leafSizesStr, ",", params[0]);
             
             std::vector<float> normalRadius;
-            splitString(normalRadiusStr, ",", normalRadius);
+            splitString(normalRadiusStr, ",", params[1]);
             
             std::vector<float> pfhRadius;
-            splitString(pfhRadiusStr, ",", pfhRadius);
+            splitString(pfhRadiusStr, ",", params[2]);
             
-            std::vector<float> ptRjtThreshs = xtl::linspace(ptRjThreshStart, ptRjThreshEnd, ptRjThreshStep, true);
+            params[3] = xtl::linspace(ptRjThreshStart, ptRjThreshEnd, ptRjThreshStep, true);
             
-            params += leafSizes, normalRadius, pfhRadius, ptRjtThreshs;
+//            params += leafSizes, normalRadius, pfhRadius, ptRjtThreshs;
         }
         
         ////////////////////////////////////////////////////////////////////////

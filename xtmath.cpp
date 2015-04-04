@@ -7,6 +7,7 @@
 //
 
 #include "xtmath.h"
+#include <limits>
 
 template<typename T>
 void xtl::sum(std::vector<std::vector<std::vector<T> > > vw, std::vector<std::vector<T> >& w)

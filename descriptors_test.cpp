@@ -1027,6 +1027,7 @@ int main(int argc, char** argv)
     // -V (-i "3,4")
     // -Vr "0,1,0.01" -i "3,4", validation with rejection
     
+    std::cout << "DescriptorsTest running .." << std::endl;
     
     int pos;
     

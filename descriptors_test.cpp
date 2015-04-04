@@ -24,7 +24,8 @@
 #include "xtmath.h"
 #include "xtvalidation.h"
 
-#include <boost/lexical_cast.hpp>
+#include <cstdlib>
+//#include <boost/lexical_cast.hpp>
 
 //using namespace boost::filesystem;
 //using namespace boost::assign;
@@ -854,7 +855,7 @@ private:
                 
                 matrix[i].resize(fields.size() - 1);
                 for (int j = 0; j < fields.size() - 1; j++)
-                    matrix[i][j] = boost::lexical_cast<float>(fields[j]);
+                    matrix[i][j] = atof(fields[j].c_str());
             }
         }
     }
@@ -889,7 +890,7 @@ private:
                 {
                     vector<float> row (fields.size() - 1);
                     for (int j = 0; j < fields.size() - 1; j++)
-                        row[j] = boost::lexical_cast<float>(fields[j]);
+                        row[j] = atof(fields[j].c_str());
                     
                     matrix.push_back(row);
                 }
@@ -981,7 +982,7 @@ void splitString(std::string str, std::string separator, std::vector<int>& args)
     boost::split(LStr, str, boost::is_any_of(separator));
     
     for (vector<string>::iterator it = LStr.begin(); it != LStr.end(); ++it)
-        args.push_back(boost::lexical_cast<int>(*it));
+        args.push_back(atoi(it->c_str()));
 }
 
 void splitString(std::string str, std::string separator, std::vector<float>& args)
@@ -991,7 +992,7 @@ void splitString(std::string str, std::string separator, std::vector<float>& arg
     boost::split(LStr, str, boost::is_any_of(separator));
     
     for (vector<string>::iterator it = LStr.begin(); it != LStr.end(); ++it)
-        args.push_back(boost::lexical_cast<float>(*it));
+        args.push_back(atof(it->c_str()));
 }
 
 void splitString(std::string str, std::string separator, std::vector<string>& args)

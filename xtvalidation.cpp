@@ -14,7 +14,7 @@
 #include <iterator>
 #include <iostream>
 
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 
 struct RNG {
     int operator() (int n) {
@@ -150,7 +150,7 @@ xtl::CvPartition::CvPartition(std::vector<int> groups, int k, int seed)
     std::map<std::string,std::vector<int> >::iterator it;
     for (it = map.begin(); it != map.end(); it++)
     {
-        labels.push_back(boost::lexical_cast<int>(it->first));
+        labels.push_back(atoi(it->first.c_str()));
         
         std::vector<int> labelIndices = it->second;
         indices.push_back(labelIndices);

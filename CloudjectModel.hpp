@@ -602,7 +602,7 @@ class LFCloudjectModel<PointT, pcl::FPFHSignature33> : public LFCloudjectModelBa
     typedef pcl::search::KdTree<PointT> KdTree;
     typedef typename pcl::search::KdTree<PointT>::Ptr KdTreePtr;
     
-	typedef LFCloudject<PointT,pcl::FPFHSignature33> LFCloudject;
+//	typedef LFCloudject<PointT,pcl::FPFHSignature33> LFCloudject;
     
 public:
     LFCloudjectModel(float leafSize = 0.f)
@@ -729,7 +729,7 @@ class LFCloudjectModel<pcl::PointXYZRGB, pcl::PFHRGBSignature250> : public LFClo
     typedef pcl::search::KdTree<pcl::PointXYZRGB> KdTree;
     typedef pcl::search::KdTree<pcl::PointXYZRGB>::Ptr KdTreePtr;
     
-	typedef LFCloudject<PointT,pcl::PFHRGBSignature250> LFCloudject;
+//	typedef LFCloudject<PointT,pcl::PFHRGBSignature250> LFCloudject;
     
 public:
     
